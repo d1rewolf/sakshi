@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packaging/sakshi-dark.svg">
+    <img src="packaging/sakshi.svg" alt="Sakshi logo: an open eye" width="128" height="128">
+  </picture>
+</p>
+
 # Sakshi
 
 Sakshi records a meeting window and turns the recording into `meeting.md`: a

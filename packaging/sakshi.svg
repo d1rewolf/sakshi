@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">
+  <!-- Sakshi (sākṣī, "the witness"): an open eye whose pupil is the record light. The lids are two arcs of
+       radius 30 meeting at (6,32) and (58,32), the same lens the tray icon draws in src/Sakshi.App/Tray/Icons.cs. -->
+  <path d="M6 32A30 30 0 0 1 58 32A30 30 0 0 1 6 32Z" fill="none" stroke="#1D2B33" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="10" fill="none" stroke="#1D2B33" stroke-width="3.5"/>
+  <circle cx="32" cy="32" r="5" fill="#D98A1E"/>
+</svg>

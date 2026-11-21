@@ -33,24 +33,40 @@ public sealed class TrayUiTests : IDisposable
                 Assert.NotEqual(seen[i], seen[j]);
     }
 
-    [Fact]
-    public void Centre_pixel_colours_follow_the_brief()
+    private static (byte B, byte G, byte R, byte A) At(TrayIconState s, int x, int y)
     {
-        (byte B, byte G, byte R, byte A) Centre(TrayIconState s)
-        {
-            var px = Icons.Pixels(s);
-            var o = (16 * Icons.Size + 16) * 4;
-            return (px[o], px[o + 1], px[o + 2], px[o + 3]);
-        }
-        var rec = Centre(TrayIconState.Recording);
+        var px = Icons.Pixels(s);
+        var o = (y * Icons.Size + x) * 4;
+        return (px[o], px[o + 1], px[o + 2], px[o + 3]);
+    }
+
+    [Fact]
+    public void Pupil_colour_follows_the_state()
+    {
+        var rec = At(TrayIconState.Recording, 16, 16);
         Assert.True(rec.R > 200 && rec.G < 90 && rec.B < 90 && rec.A == 255);
-        var blue = Centre(TrayIconState.Transcribing);
+        var blue = At(TrayIconState.Transcribing, 16, 16);
         Assert.True(blue.B > 200 && blue.R < 90 && blue.A == 255);
-        var dim = Centre(TrayIconState.RecordingDim);
-        Assert.True(dim.R < rec.R && dim.R > dim.G);
-        Assert.Equal(0, Centre(TrayIconState.Busy).A);   // a ring: the middle is clear
-        var idle = Centre(TrayIconState.Idle);
-        Assert.True(idle.A == 255 && idle.R < 160);
+        var idle = At(TrayIconState.Idle, 16, 16);
+        Assert.True(idle.A == 255 && Math.Abs(idle.R - idle.B) < 24 && idle.R is > 100 and < 180);   // grey
+        Assert.Equal(0, At(TrayIconState.RecordingDim, 16, 16).A);   // the blink: the pupil is gone
+        Assert.Equal(0, At(TrayIconState.Busy, 16, 16).A);           // a ring: the middle is clear
+        Assert.True(At(TrayIconState.Busy, 16 + 3, 16).R > 200);     // ...of amber
+    }
+
+    [Fact]
+    public void Eye_outline_is_the_same_grey_in_every_state()
+    {
+        // The upper lid crosses the middle column near y = 8.5; the corners are near x = 2 and x = 30.
+        foreach (var s in States)
+        {
+            var lid = At(s, 16, 8);
+            Assert.True(lid.A > 200 && Math.Abs(lid.R - lid.B) < 24, $"{s}: lid {lid}");
+            Assert.Equal(At(TrayIconState.Idle, 16, 8), lid);
+            Assert.Equal(At(TrayIconState.Idle, 16, 23), At(s, 16, 23));
+            Assert.Equal(0, At(s, 16, 2).A);    // above the eye is clear
+            Assert.Equal(0, At(s, 0, 16).A);    // beyond the corner is clear
+        }
     }
 
     [Fact]

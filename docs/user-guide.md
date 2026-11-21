@@ -18,12 +18,12 @@ If Sakshi is not installed yet, see [Installing Sakshi](install.md) first.
 
 Sakshi lives in the tray (Windows: the notification area at the bottom right,
 which may hide it behind the ^ arrow; macOS: the menu bar at the top right;
-Linux: your bar's tray). The icon shows what it is doing:
+Linux: your bar's tray). The icon is an eye, and its pupil shows what Sakshi is doing:
 
-- **Idle:** ready to record.
-- **Blinking:** recording.
-- **Busy:** starting a recording, or waiting for you to name the one you stopped.
-- **Transcribing:** a transcript is being made in the background. You can record meanwhile.
+- **Grey pupil:** idle, ready to record.
+- **Blinking red pupil:** recording.
+- **Amber ring:** starting a recording, or waiting for you to name the one you stopped.
+- **Blue pupil:** a transcript is being made in the background. You can record meanwhile.
 
 Its menu has:
 
