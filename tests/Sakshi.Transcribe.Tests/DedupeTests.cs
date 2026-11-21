@@ -119,7 +119,7 @@ public class DedupeTests : IDisposable
     public async Task Dedupe_RealFfmpeg_IdenticalFramesCollapse()
     {
         Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
-        var src = Path.Combine(_dir, "a.png");
+        var src = Path.Combine(_dir, "a.jpg");
         var gen = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ffmpeg")
         {
             ArgumentList = { "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=160x120:duration=1:rate=1", "-frames:v", "1", src },

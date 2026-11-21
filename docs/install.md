@@ -7,13 +7,14 @@ on the Releases page (<https://github.com/d1rewolf/sakshi/releases>).
 
 | OS | File | Needs |
 | --- | --- | --- |
-| Windows 10 1903+ (64-bit) | [`sakshi-win-Setup.exe`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-win-Setup.exe) | OBS 32+, ffmpeg |
-| macOS 13+ (Apple silicon) | [`sakshi-osx-Setup.pkg`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-osx-Setup.pkg) | OBS 32+, ffmpeg |
-| Linux (x86-64) | [`sakshi.AppImage`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi.AppImage) | OBS 32+, ffmpeg, a tray |
+| Windows 10 1903+ (64-bit) | [`sakshi-win-Setup.exe`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-win-Setup.exe) | OBS 32+ |
+| macOS 13+ (Apple silicon) | [`sakshi-osx-Setup.pkg`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-osx-Setup.pkg) | OBS 32+ |
+| Linux (x86-64) | [`sakshi.AppImage`](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi.AppImage) | OBS 32+, a tray |
 
-The installers do not install OBS or ffmpeg. When Sakshi first starts, its
-setup window lists what is missing and the command that installs each piece
-(see "Check the install" below).
+The installers include ffmpeg, which Sakshi uses to read recordings, but not
+OBS, which does the recording. When Sakshi first starts, its setup window lists
+what is missing and the command that installs each piece (see "Check the
+install" below).
 
 The builds are **not signed**, so each OS warns you the first time. The steps
 below get past the warning. Nothing is wrong with the file.
@@ -34,8 +35,6 @@ find and share meetings.
 4. Open a **new** terminal (PowerShell or cmd) so it sees the updated PATH,
    then run the checks below. The installer puts the `sakshi` command on your
    PATH and adds a Start menu entry.
-5. Install ffmpeg if `doctor` says it is missing: `winget install Gyan.FFmpeg`
-   (and open another new terminal afterwards).
 
 ## macOS
 
@@ -50,7 +49,7 @@ find and share meetings.
 3. Follow the installer. It puts `Sakshi.app` in `/Applications`, or in
    `~/Applications` if you choose "Install for me only".
 4. OBS: install `OBS.app` from <https://obsproject.com>, open it once and
-   quit it. ffmpeg: `brew install ffmpeg`.
+   quit it.
 5. OBS needs the Screen Recording and Microphone permissions (System
    Settings, Privacy & Security; on macOS 15 Screen Recording is called
    "Screen & System Audio Recording"). The setup window has an
@@ -79,9 +78,9 @@ find and share meetings.
    (the `fuse3` package on Ubuntu). Without it, run
    `./sakshi.AppImage --appimage-extract-and-run`, or set
    `APPIMAGE_EXTRACT_AND_RUN=1`.
-4. OBS 32+ and ffmpeg: on Ubuntu 24.04 use the OBS PPA
+4. OBS 32+: on Ubuntu 24.04 use the OBS PPA
    (`sudo add-apt-repository ppa:obsproject/obs-studio`), then
-   `sudo apt install obs-studio ffmpeg`. GNOME needs the AppIndicator
+   `sudo apt install obs-studio`. GNOME needs the AppIndicator
    extension for the tray icon (Ubuntu enables it by default).
 
 ## Check the install

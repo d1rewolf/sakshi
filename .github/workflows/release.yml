@@ -9,7 +9,41 @@ permissions:
   contents: read
 
 jobs:
+  # The LGPL ffmpeg each installer ships next to sakshi (packaging/build-ffmpeg.sh). Cached, so it is only rebuilt when
+  # the script changes. Windows cross-compiles on Linux.
+  ffmpeg:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+          - os: ubuntu-latest
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - id: cache
+        uses: actions/cache@v6
+        with:
+          path: ffmpeg-out
+          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('packaging/build-ffmpeg.sh') }}
+      - name: Install build tools
+        if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm ${{ matrix.rid == 'win-x64' && 'mingw-w64' || '' }}
+      - name: Build ffmpeg
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: packaging/build-ffmpeg.sh ${{ matrix.rid }} ffmpeg-out
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          path: ffmpeg-out/
+
   pack:
+    needs: ffmpeg
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +76,13 @@ jobs:
       - name: Publish the tray executable (Windows)
         if: runner.os == 'Windows'
         run: dotnet publish src/Sakshi.Tray -c Release -r win-x64 --self-contained -p:PublishReadyToRun=true -p:Version=$VERSION -o publish
+      - uses: actions/download-artifact@v7
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          path: publish
+      - name: Make the shipped ffmpeg executable
+        # Artifacts do not keep file modes.
+        run: chmod +x publish/ffmpeg* && ls -l publish/ffmpeg*
       - name: Build the macOS icon
         if: runner.os == 'macOS'
         run: |
@@ -77,6 +118,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v7
         with:
           path: artifacts
@@ -99,3 +141,14 @@ jobs:
               --repoUrl https://github.com/d1rewolf/sakshi --token "$TOKEN" \
               --merge $publish --tag "$TAG" --releaseName "Sakshi $TAG"
           done
+      - name: Attach the source of the shipped ffmpeg
+        # The LGPL asks that whoever gets the binary can get its source; this is the exact tarball it was built from.
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(sed -n 's/^VERSION=//p' packaging/build-ffmpeg.sh)
+          sha=$(sed -n 's/^SHA256=//p' packaging/build-ffmpeg.sh)
+          curl -fsSL -o "ffmpeg-$version.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$version.tar.xz"
+          echo "$sha  ffmpeg-$version.tar.xz" | sha256sum -c -
+          gh release upload "$TAG" "ffmpeg-$version.tar.xz" --repo "$GITHUB_REPOSITORY"

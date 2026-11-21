@@ -103,7 +103,8 @@ public class TranscribeCommandTests : IDisposable
         {
             ArgumentList =
             {
-                "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10",
+                // A still picture: "changes" mode keeps a frame once it has held still for a second.
+                "-y", "-loglevel", "error", "-f", "lavfi", "-i", "smptebars=duration=3:size=320x240:rate=10",
                 "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-shortest", clip,
             },
             RedirectStandardError = true,

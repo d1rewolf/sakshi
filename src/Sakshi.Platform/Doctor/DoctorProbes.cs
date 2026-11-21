@@ -23,11 +23,14 @@ public sealed record DoctorProbes(
 {
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>The ffmpeg shipped with this copy of Sakshi, or null (a build from source uses the one on PATH).</summary>
+    public string? BundledFfmpeg { get; init; }
+
     /// <summary>How a fix command runs sakshi on this machine (the AppImage's link, or this executable).</summary>
     public string SakshiCommand { get; init; } = "sakshi";
 
     /// <summary>The probes for this machine. Nothing runs until a probe is called.</summary>
-    public static DoctorProbes Production(HostOs os, IProcessRunner runner)
+    public static DoctorProbes Production(HostOs os, IProcessRunner runner, string? bundledFfmpeg)
     {
         IObsInstall install = os switch
         {
@@ -46,6 +49,7 @@ public sealed record DoctorProbes(
             () => runner.IsRunning(install.ProcessName),
             f => File.Exists(f) ? FileVersionInfo.GetVersionInfo(f).ProductVersion : null)
         {
+            BundledFfmpeg = bundledFfmpeg,
             // An AppImage runs from a temporary mount; the integration keeps ~/.local/bin/sakshi pointing at it.
             SakshiCommand = Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 }
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "sakshi")

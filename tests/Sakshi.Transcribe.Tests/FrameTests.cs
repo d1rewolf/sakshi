@@ -32,7 +32,7 @@ public class FrameTests : IDisposable
     [Fact]
     public void VideoFilter_Changes() =>
         Assert.Equal(
-            "mpdecimate,metadata=mode=add:key=keep:value=1,scale=w='min(1280\\,iw)':h=-2,metadata=print:file=f",
+            "freezedetect=n=-50dB:d=1,metadata=mode=select:key=lavfi.freezedetect.freeze_start,metadata=mode=add:key=keep:value=1,scale=w='min(1280\\,iw)':h=-2,metadata=print:file=f",
             FrameFilters.VideoFilter(Opts(FramesMode.Changes), "f"));
 
     [Fact]
@@ -115,32 +115,48 @@ public class FrameTests : IDisposable
     public void RenameRaw_MissingDirectory_ReturnsEmpty() =>
         Assert.Empty(FrameFiles.RenameRaw(Path.Combine(_dir, "nope"), [1.0]));
 
-    [Fact]
-    public async Task ExtractFrames_RealFfmpeg_SmallClip()
+    private async Task<string> ClipAsync(string source)
     {
-        Assert.SkipUnless(OnPath("ffmpeg"), "ffmpeg is not on PATH");
         var clip = Path.Combine(_dir, "clip.mp4");
-        var frames = Path.Combine(_dir, "frames");
-        Directory.CreateDirectory(frames);
         var gen = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ffmpeg")
         {
-            ArgumentList = { "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=10", clip },
+            ArgumentList = { "-y", "-loglevel", "error", "-f", "lavfi", "-i", source, clip },
             RedirectStandardError = true,
         })!;
         await gen.WaitForExitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(0, gen.ExitCode);
+        return clip;
+    }
 
+    private async Task<IReadOnlyList<FrameRecord>> ChangesFramesAsync(string clip)
+    {
+        var frames = Path.Combine(_dir, "frames");
+        Directory.CreateDirectory(frames);
         // Like TranscribeCommand: the metadata path inside -vf is relative and ffmpeg runs from the
         // output dir, because a drive-letter path (C:\...) breaks ffmpeg's filter parser on Windows.
         var meta = Path.Combine(frames, ".metadata.txt");
         File.WriteAllText(meta, "");
         var vf = FrameFilters.VideoFilter(Opts(FramesMode.Changes), "frames/.metadata.txt");
         await Ffmpeg.ExtractFramesAsync(clip, frames, vf, TestContext.Current.CancellationToken, workingDirectory: _dir);
-
-        var times = FrameFiles.ParseMetadata(File.ReadAllText(meta));
-        var recs = FrameFiles.RenameRaw(frames, times);
-        Assert.NotEmpty(recs);
+        var recs = FrameFiles.RenameRaw(frames, FrameFiles.ParseMetadata(File.ReadAllText(meta)));
         Assert.All(recs, r => Assert.True(File.Exists(Path.Combine(frames, r.FileName))));
+        return recs;
+    }
+
+    [Fact]
+    public async Task ExtractFrames_RealFfmpeg_ChangesKeepsAPictureThatHoldsStill()
+    {
+        Assert.SkipUnless(OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await ClipAsync("color=c=blue:duration=3:size=320x240:rate=10");
+        Assert.Single(await ChangesFramesAsync(clip));
+    }
+
+    [Fact]
+    public async Task ExtractFrames_RealFfmpeg_ChangesWithAPictureThatNeverHoldsStillGivesNoFramesAndNoError()
+    {
+        Assert.SkipUnless(OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await ClipAsync("testsrc=duration=3:size=320x240:rate=10");
+        Assert.Empty(await ChangesFramesAsync(clip));
     }
 
     [Fact]

@@ -394,9 +394,9 @@ internal static class Commands
             stdout.WriteLine(json);
             stdout.Flush();
         }
-        if (!TranscribeCommand.OnPath("ffmpeg"))
+        if (!FfmpegExecutable.Available)
         {
-            stderr.WriteLine("live-transcribe: ffmpeg is not on PATH");
+            stderr.WriteLine("live-transcribe: ffmpeg not found");
             Line("{\"error\":\"no-ffmpeg\"}");
             return 5;
         }
@@ -436,7 +436,7 @@ internal static class Commands
         }
         // A broken config must not stop the check: the defaults tell the same story for everything but the model.
         var config = Load(paths, os, home, stderr) ?? SakshiConfig.Defaults(os, home);
-        var checks = Doctor.Run(os, config, paths, probes ?? DoctorProbes.Production(os, new ProcessRunner()));
+        var checks = Doctor.Run(os, config, paths, probes ?? DoctorProbes.Production(os, new ProcessRunner(), FfmpegExecutable.Bundled()));
         foreach (var c in checks)
         {
             stdout.WriteLine($"{(c.Ok ? "✓" : "✗")} {c.Name}: {c.Detail}");

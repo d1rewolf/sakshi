@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Sakshi.Transcribe;
 
-/// <summary>ffmpeg invocations, run directly (no shell) with ffmpeg taken from PATH.</summary>
+/// <summary>ffmpeg invocations, run directly (no shell), with the ffmpeg <see cref="FfmpegExecutable"/> picks.</summary>
 public static class Ffmpeg
 {
     private const int JpegQuality = 3;
@@ -29,14 +29,16 @@ public static class Ffmpeg
     private static string Seconds(TimeSpan t) => t.TotalSeconds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Does not create <paramref name="framesDir"/> or the metadata file. <paramref name="workingDirectory"/> lets the
+    /// Writes JPEGs, none when the filter passes no frame (a video that never holds still in "changes" mode): the
+    /// explicit full-range pixel format lets the JPEG encoder start without a frame to copy it from; with frames it
+    /// is what ffmpeg picks anyway. Does not create <paramref name="framesDir"/> or the metadata file. <paramref name="workingDirectory"/> lets the
     /// caller name the metadata file with a relative path in <paramref name="vf"/>, which sidesteps filtergraph
     /// escaping of drive letters, quotes and colons; input and framesDir must then be absolute.
     /// </summary>
     public static Task ExtractFramesAsync(
         string input, string framesDir, string vf, CancellationToken ct, string? workingDirectory = null) =>
         RunCheckedAsync(
-            ["-y", "-loglevel", "error", "-i", input, "-vf", vf, "-fps_mode", "vfr",
+            ["-y", "-loglevel", "error", "-i", input, "-vf", vf, "-fps_mode", "vfr", "-pix_fmt", "yuvj420p",
              "-q:v", JpegQuality.ToString(), Path.Combine(framesDir, "raw_%04d.jpg")],
             ct, workingDirectory);
 
@@ -85,7 +87,7 @@ public static class Ffmpeg
     private static async Task<Result?> RunAsync(
         string[] args, TimeSpan? timeout, CancellationToken ct, string? workingDirectory = null)
     {
-        var psi = new ProcessStartInfo("ffmpeg")
+        var psi = new ProcessStartInfo(FfmpegExecutable.Command)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,

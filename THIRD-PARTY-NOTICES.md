@@ -1,5 +1,16 @@
 # Third-party notices
 
+## FFmpeg (shipped in the installers)
+
+- The installers put an `ffmpeg` executable (`ffmpeg.exe` on Windows) next to `sakshi`. Sakshi runs it as a separate
+  program to read recordings; it is not linked into Sakshi.
+- FFmpeg 9.1, built from the official source by `packaging/build-ffmpeg.sh`: LGPL build, no external libraries.
+- Licence: GNU Lesser General Public License version 2.1 or later. The licence text ships next to the executable as
+  `ffmpeg-COPYING.LGPLv2.1.txt`.
+- Source: the exact tarball it was built from, `ffmpeg-9.1.tar.xz`, is attached to every Sakshi release; it is also at
+  https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz. The build script shows how it was configured.
+- FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
+
 ## Symbols Nerd Font Mono (bundled font)
 
 - File: `src/Sakshi.App/Assets/SymbolsNerdFontMono-Regular.ttf`, embedded in the app so the prompt glyphs show on macOS and Windows.

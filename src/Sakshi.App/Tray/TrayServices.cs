@@ -10,6 +10,7 @@ using Sakshi.Core.Transcription;
 using Sakshi.Platform;
 using Sakshi.Platform.Autostart;
 using Sakshi.Platform.Doctor;
+using Sakshi.Transcribe;
 
 namespace Sakshi.App.Tray;
 
@@ -113,7 +114,7 @@ public sealed record TrayServices(
             ObsRunning = obsRunning,
             CaptureRecovery = adapters.Recovery,
             ConnectObs = connect,
-            DoctorProbes = DoctorProbes.Production(os, runner),
+            DoctorProbes = DoctorProbes.Production(os, runner, FfmpegExecutable.Bundled()),
         };
     }
 

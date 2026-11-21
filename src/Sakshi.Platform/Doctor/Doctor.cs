@@ -136,6 +136,7 @@ public static class Doctor
 
     private static DoctorCheck Ffmpeg(HostOs os, DoctorProbes p)
     {
+        if (p.BundledFfmpeg is not null) return new DoctorCheck("ffmpeg", true, "included with Sakshi", null);
         var found = p.Which("ffmpeg")
             ?? (os == HostOs.MacOS
                 ? MacPath.HomebrewDirs.Select(d => Path.Combine(d, "ffmpeg")).FirstOrDefault(p.FileExists)

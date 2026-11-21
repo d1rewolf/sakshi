@@ -20,8 +20,9 @@ public static class TranscribeUsage
           -g, --min-gap SECS      Minimum seconds between moderate frames (default: 8)
           -F, --frames MODE       Frame extraction mode (default: scene)
                                     scene    scene-change detection tuned by -t/-T/-g
-                                    changes  every frame where the video visibly
-                                             changes (no min-gap; -t/-T/-g ignored)
+                                    changes  one frame each time the picture has held
+                                             still for a second (a slide, a shared
+                                             screen); -t/-T/-g ignored
                                     all      every single frame — can produce a huge
                                              number of files (-t/-T/-g ignored)
                                     none     no frames at all; meeting.md is the
@@ -57,14 +58,15 @@ public static class TranscribeUsage
           costs ~1k tokens, so redundancy crowds out transcript.
 
           -F changes -D 8    Best for slide decks / screen shares fed to an LLM:
-                             keeps every visible change event, then the global
-                             256-bit dedupe collapses cursor jitter, scroll wiggle,
-                             and revisited slides to one frame each.
+                             keeps a frame each time the picture settles for a
+                             second, then the global 256-bit dedupe collapses
+                             revisited slides to one frame each. Webcam motion
+                             does not add frames; a slide shown for under a
+                             second is skipped.
           -F scene           (default) Best for content with continuous motion —
-                             live dashboards, maps, large webcam feeds — where
-                             every frame genuinely differs and 'changes' explodes
-                             (a 1h meeting can yield 50k+ frames). Samples on
-                             scene cuts with a min-gap instead; lossy but bounded.
+                             live dashboards, maps, videos — that never holds
+                             still, so 'changes' would skip it. Samples on scene
+                             cuts with a min-gap instead; lossy but bounded.
           -F all             Debugging only. Never commit its output to git.
           -F none            Audio-only meetings, podcasts, calls with nothing worth
                              looking at. Skips the video pass entirely, so it is also

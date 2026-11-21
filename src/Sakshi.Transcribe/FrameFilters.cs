@@ -13,7 +13,11 @@ public static class FrameFilters
                 "select='isnan(prev_selected_t)"
                 + $"+gt(scene\\,{Num(o.Strong)})"
                 + $"+gt(scene\\,{Num(o.Threshold)})*gte(t-prev_selected_t\\,{Num(o.MinGap)})'",
-            FramesMode.Changes => "mpdecimate,metadata=mode=add:key=keep:value=1",
+            // A picture each time the screen has held still for a second (a slide, a shared document), not one per
+            // flicker of a webcam. freezedetect is LGPL, unlike mpdecimate, so the shipped ffmpeg can be LGPL.
+            FramesMode.Changes =>
+                "freezedetect=n=-50dB:d=1,metadata=mode=select:key=lavfi.freezedetect.freeze_start,"
+                + "metadata=mode=add:key=keep:value=1",
             FramesMode.All => "metadata=mode=add:key=keep:value=1",
             _ => throw new ArgumentException("No video filter for frame mode " + o.Frames, nameof(o)),
         };

@@ -52,6 +52,18 @@ public sealed class DoctorTests
         Assert.True(Get(checks, "Microphone").Ok);
     }
 
+    [Theory]
+    [InlineData(HostOs.Windows)]
+    [InlineData(HostOs.MacOS)]
+    [InlineData(HostOs.Linux)]
+    public void The_ffmpeg_shipped_with_Sakshi_needs_nothing_installed(HostOs os)
+    {
+        var ffmpeg = Get(Run(os, Nothing() with { BundledFfmpeg = "/opt/sakshi/ffmpeg" }), "ffmpeg");
+        Assert.True(ffmpeg.Ok);
+        Assert.Equal("included with Sakshi", ffmpeg.Detail);
+        Assert.Null(ffmpeg.Fix);
+    }
+
     [Fact]
     public void Mac_finds_ffmpeg_in_the_homebrew_dirs()
     {

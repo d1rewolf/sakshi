@@ -37,6 +37,8 @@ with Velopack and uploads them to one GitHub Release.
   The download links in `README.md` and `docs/install.md` use
   `releases/latest/download/<file>`, so they follow each new release; the
   installer file names carry no version and must stay that way.
+  Each Release also carries `ffmpeg-<version>.tar.xz`, the source of the
+  ffmpeg the installers ship (the LGPL asks for it to be offered).
   Users only need the three installers (`Setup.exe`, `Setup.pkg`,
   `.AppImage`); the rest is Velopack's package and feed files. The runners
   pack from an empty output folder, so there are no `-delta.nupkg` files.

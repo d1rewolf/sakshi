@@ -25,9 +25,9 @@ hour-long meeting. Sakshi turns the meeting into something every LLM can read:
 
 | System | Installer | Also needs |
 | --- | --- | --- |
-| Windows 10 1903+ (64-bit) | [sakshi-win-Setup.exe](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-win-Setup.exe) | OBS 32+, ffmpeg |
-| macOS 13+ (Apple silicon) | [sakshi-osx-Setup.pkg](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-osx-Setup.pkg) | OBS 32+, ffmpeg |
-| Linux (x86-64) | [sakshi.AppImage](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi.AppImage) | OBS 32+, ffmpeg, a tray |
+| Windows 10 1903+ (64-bit) | [sakshi-win-Setup.exe](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-win-Setup.exe) | OBS 32+ |
+| macOS 13+ (Apple silicon) | [sakshi-osx-Setup.pkg](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi-osx-Setup.pkg) | OBS 32+ |
+| Linux (x86-64) | [sakshi.AppImage](https://github.com/d1rewolf/sakshi/releases/latest/download/sakshi.AppImage) | OBS 32+, a tray |
 
 These links always fetch the newest release. Older versions are on the
 [Releases page](https://github.com/d1rewolf/sakshi/releases). The builds
@@ -95,6 +95,7 @@ dotnet publish src/Sakshi.App -c Release -r linux-x64 --self-contained \
   -p:PublishReadyToRun=true -o ~/.local/lib/sakshi-cs
 ```
 
+A build from source has no ffmpeg of its own, so install it (`sudo pacman -S ffmpeg`).
 Then wire it into the desktop:
 
 - `~/.local/bin/sakshi` is a link to `~/.local/lib/sakshi-cs/sakshi`.

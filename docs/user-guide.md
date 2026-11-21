@@ -105,8 +105,8 @@ Sakshi asks three short questions. Each window closes on its own after
 
    | Choice | Use it for |
    | --- | --- |
-   | **Changes** (the usual) | Slides and screen shares: a picture each time the screen changes |
-   | **Scene cuts** | Video that keeps moving, where "changes" would give too many |
+   | **Changes** (the usual) | Slides and screen shares: a picture each time the screen settles on something new, such as the next slide |
+   | **Scene cuts** | Video that keeps moving, which "changes" skips because it never holds still |
    | **None** | Transcript only; the fastest |
    | **All** | Every frame; only for troubleshooting |
 

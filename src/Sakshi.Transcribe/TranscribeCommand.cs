@@ -128,7 +128,7 @@ public static class TranscribeCommand
                 }
             }
 
-            if (!OnPath("ffmpeg"))
+            if (!FfmpegExecutable.Available)
             {
                 await stderr.WriteLineAsync("Missing dependency: ffmpeg");
                 return 1;
