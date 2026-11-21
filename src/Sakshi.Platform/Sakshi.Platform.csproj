@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sakshi.Platform.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sakshi.Core/Sakshi.Core.csproj" />
+  </ItemGroup>
+</Project>

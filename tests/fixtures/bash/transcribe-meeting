@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+# transcribe-meeting — transcribe a video and extract scene-change frames
+# into a single folder an LLM can read end-to-end via meeting.md.
+#
+# Outputs into <output-dir>:
+#   audio.wav             16 kHz mono extracted audio
+#   transcript.srt        human-readable transcript
+#   transcript.json       whisper JSON with segment timestamps
+#   frames/frame_HH-MM-SS.jpg   keyframes at scene changes (min-gap enforced)
+#   meeting.md            interleaved transcript + frame references
+
+set -euo pipefail
+
+OUTPUT_DIR=""
+MD_ONLY=0
+SCENE_THRESHOLD="0.2"
+STRONG_THRESHOLD="0.45"
+MIN_GAP="8"
+FRAMES_MODE="scene"
+DEDUPE_ARG="off"
+MODEL="/usr/local/share/whisper.cpp/models/ggml-base.en.bin"
+MAX_WIDTH="1280"
+JPEG_Q="3"
+LANG="en"
+MAX_CONTEXT="0"
+
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [options] <input-video>
+
+Input is anything ffmpeg can read: .mp4, .mov (iPhone/QuickTime, rotation
+honored), .mkv, .webm, or audio-only files like .m4a/.mp3/.wav (use -F none).
+
+Options:
+  -o, --output DIR        Output directory (created if missing); defaults to
+                          the video filename without extension, spaces
+                          replaced with underscores, in the current directory
+  -t, --threshold NUM     Scene-change threshold 0.0-1.0; moderate changes above
+                          this are kept if min-gap has elapsed (default: $SCENE_THRESHOLD)
+  -T, --strong NUM        Strong scene-change threshold; changes above this are
+                          always kept, ignoring min-gap (default: $STRONG_THRESHOLD)
+  -g, --min-gap SECS      Minimum seconds between moderate frames (default: $MIN_GAP)
+  -F, --frames MODE       Frame extraction mode (default: scene)
+                            scene    scene-change detection tuned by -t/-T/-g
+                            changes  every frame where the video visibly
+                                     changes (no min-gap; -t/-T/-g ignored)
+                            all      every single frame — can produce a huge
+                                     number of files (-t/-T/-g ignored)
+                            none     no frames at all; meeting.md is the
+                                     transcript only (-t/-T/-g/-D ignored)
+  -D, --dedupe [N]        After extraction, drop frames whose 256-bit dHash is
+                          within Hamming distance N (default: 8) of any
+                          earlier kept frame
+  -m, --model PATH        whisper.cpp model file (default: $MODEL)
+  -w, --max-width PX      Max frame width; smaller frames untouched (default: $MAX_WIDTH)
+  -l, --language LANG     Spoken language for whisper, "auto" to detect (default: $LANG)
+  -c, --max-context N     Tokens of the previous window's transcript that
+                          whisper carries into the next one (default: $MAX_CONTEXT).
+                          0 transcribes each window on its own, which stops
+                          the repetition loops whisper falls into over long
+                          silences, where one phrase gets stuck and repeats
+                          for minutes. Pass -1 to carry the full context: it
+                          reads more fluently on clean continuous speech, but
+                          can run away on meetings.
+  -M, --markdown-only     Like -F none, but write the markdown to
+                          <video name>.md (spaces replaced with underscores) in
+                          the current directory and keep no other artifacts;
+                          -o is ignored
+  -h, --help              Show this help
+
+Outputs into <output-dir>:
+  audio.wav, transcript.srt, transcript.json,
+  frames/frame_HH-MM-SS.jpg, meeting.md
+
+Choosing a frame mode (rule of thumb):
+  The transcript carries most of the meaning; frames are exhibits. An LLM
+  reading meeting.md wants every distinct screen exactly once — each image
+  costs ~1k tokens, so redundancy crowds out transcript.
+
+  -F changes -D 8    Best for slide decks / screen shares fed to an LLM:
+                     keeps every visible change event, then the global
+                     256-bit dedupe collapses cursor jitter, scroll wiggle,
+                     and revisited slides to one frame each.
+  -F scene           (default) Best for content with continuous motion —
+                     live dashboards, maps, large webcam feeds — where
+                     every frame genuinely differs and 'changes' explodes
+                     (a 1h meeting can yield 50k+ frames). Samples on
+                     scene cuts with a min-gap instead; lossy but bounded.
+  -F all             Debugging only. Never commit its output to git.
+  -F none            Audio-only meetings, podcasts, calls with nothing worth
+                     looking at. Skips the video pass entirely, so it is also
+                     the fastest.
+
+  If frames/ comes back with more than ~300 files, the content is animated:
+  rerun with -F scene, or raise -D toward 16 and accept sampling.
+
+Examples:
+  ${0##*/} -F changes -D 8 meeting.mp4      # accuracy-first, LLM-ready
+  ${0##*/} -o notes -F scene meeting.mp4    # bounded output for live demos
+  ${0##*/} -F none -o notes meeting.mp4     # transcript only, keeps audio/srt
+  ${0##*/} -M meeting.mp4                   # transcript only, single .md file
+EOF
+}
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o|--output)    OUTPUT_DIR="${2:?}"; shift 2 ;;
+        -t|--threshold) SCENE_THRESHOLD="${2:?}"; shift 2 ;;
+        -T|--strong)    STRONG_THRESHOLD="${2:?}"; shift 2 ;;
+        -g|--min-gap)   MIN_GAP="${2:?}"; shift 2 ;;
+        -F|--frames)    FRAMES_MODE="${2:?}"; shift 2 ;;
+        -D|--dedupe)
+            if [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+                DEDUPE_ARG="$2"; shift 2
+            else
+                DEDUPE_ARG="8"; shift
+            fi ;;
+        -m|--model)     MODEL="${2:?}"; shift 2 ;;
+        -w|--max-width) MAX_WIDTH="${2:?}"; shift 2 ;;
+        -l|--language)  LANG="${2:?}"; shift 2 ;;
+        -c|--max-context) MAX_CONTEXT="${2:?}"; shift 2 ;;
+        -M|--markdown-only) MD_ONLY=1; shift ;;
+        -h|--help)      usage; exit 0 ;;
+        --)             shift; POSITIONAL+=("$@"); break ;;
+        -*)             echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+        *)              POSITIONAL+=("$1"); shift ;;
+    esac
+done
+
+case "$FRAMES_MODE" in
+    scene|changes|all|none) ;;
+    *)  echo "Error: invalid --frames mode: $FRAMES_MODE (expected scene, changes, all, or none)" >&2
+        usage >&2; exit 2 ;;
+esac
+
+if ! [[ "$MAX_CONTEXT" =~ ^-?[0-9]+$ ]]; then
+    echo "Error: --max-context takes a whole number of tokens, not \"$MAX_CONTEXT\"." >&2
+    echo "Nothing was transcribed. Use 0 to transcribe each audio window on its" >&2
+    echo "own, or -1 to carry the full context." >&2
+    exit 2
+fi
+
+INPUT="${POSITIONAL[0]:-}"
+if [[ ${#POSITIONAL[@]} -gt 1 ]]; then
+    echo "Error: unexpected extra arguments: ${POSITIONAL[*]:1}" >&2
+    usage >&2
+    exit 2
+fi
+[[ -n "$INPUT" ]]      || { echo "Error: input video path is required." >&2; usage >&2; exit 2; }
+# -M implies no frames; -F none is the same rendering with a real output dir.
+NO_FRAMES=0
+[[ $MD_ONLY -eq 1 || "$FRAMES_MODE" == "none" ]] && NO_FRAMES=1
+
+MD_FILE=""
+if [[ $MD_ONLY -eq 1 ]]; then
+    MD_FILE="$(basename "$INPUT")"
+    MD_FILE="${MD_FILE%.*}"
+    MD_FILE="${MD_FILE// /_}.md"
+    OUTPUT_DIR="$(mktemp -d)"
+    trap 'rm -rf "$OUTPUT_DIR"' EXIT
+elif [[ -z "$OUTPUT_DIR" ]]; then
+    OUTPUT_DIR="$(basename "$INPUT")"
+    OUTPUT_DIR="${OUTPUT_DIR%.*}"
+    OUTPUT_DIR="${OUTPUT_DIR// /_}"
+fi
+[[ -f "$INPUT" ]]      || { echo "Error: input file not found: $INPUT" >&2; exit 1; }
+[[ -f "$MODEL" ]]      || { echo "Error: whisper model not found: $MODEL" >&2; exit 1; }
+
+for cmd in ffmpeg ffprobe whisper-cli python3; do
+    command -v "$cmd" >/dev/null || { echo "Missing dependency: $cmd" >&2; exit 1; }
+done
+
+if [[ $NO_FRAMES -eq 1 ]]; then
+    mkdir -p "$OUTPUT_DIR"
+else
+    mkdir -p "$OUTPUT_DIR/frames"
+fi
+AUDIO="$OUTPUT_DIR/audio.wav"
+TRANSCRIPT_BASE="$OUTPUT_DIR/transcript"
+META_FILE="$OUTPUT_DIR/frames/.metadata.txt"
+
+echo "==> Extracting audio to $AUDIO"
+ffmpeg -y -loglevel error -i "$INPUT" \
+    -vn -ac 1 -ar 16000 -c:a pcm_s16le \
+    "$AUDIO"
+
+echo "==> Transcribing with whisper-cli (model: $(basename "$MODEL"))"
+# -mc 0 stops whisper feeding each window's transcript back in as context for
+# the next one. Meeting audio has long silences, and with context carried the
+# decoder latches onto the last phrase and repeats it for minutes. See -c.
+whisper-cli \
+    -m "$MODEL" \
+    -f "$AUDIO" \
+    -l "$LANG" \
+    -mc "$MAX_CONTEXT" \
+    -osrt -oj \
+    -of "$TRANSCRIPT_BASE" \
+    -pp
+
+if [[ $NO_FRAMES -eq 0 ]]; then
+# Inside ffmpeg's filtergraph, commas inside expressions must be escaped (\,)
+# because comma is also the filter separator.
+case "$FRAMES_MODE" in
+    scene)
+        echo "==> Extracting frames (mode=scene threshold=$SCENE_THRESHOLD strong=$STRONG_THRESHOLD min-gap=${MIN_GAP}s max-width=${MAX_WIDTH}px)"
+        # Keep a frame when ANY of these hold:
+        #   - it's the first frame (isnan(prev_selected_t))
+        #   - a STRONG scene change (always, even within min-gap — catches fast slide flips)
+        #   - a moderate scene change AND min-gap has elapsed (avoids near-dup churn)
+        SELECT_EXPR="isnan(prev_selected_t)+gt(scene\\,$STRONG_THRESHOLD)+gt(scene\\,$SCENE_THRESHOLD)*gte(t-prev_selected_t\\,$MIN_GAP)"
+        MODE_FILTER="select='$SELECT_EXPR'"
+        ;;
+    changes)
+        echo "==> Extracting frames (mode=changes max-width=${MAX_WIDTH}px)"
+        # mpdecimate drops frames near-identical to the previous one; the
+        # metadata=add tag guarantees metadata=print emits a pts_time line
+        # for every surviving frame (select provides that in scene mode).
+        MODE_FILTER="mpdecimate,metadata=mode=add:key=keep:value=1"
+        ;;
+    all)
+        echo "==> Extracting frames (mode=all max-width=${MAX_WIDTH}px)"
+        echo "Warning: --frames all extracts every frame; a 1-hour 30fps video yields ~108k JPEGs." >&2
+        MODE_FILTER="metadata=mode=add:key=keep:value=1"
+        ;;
+esac
+SCALE_EXPR="scale=w='min($MAX_WIDTH\\,iw)':h=-2"
+: > "$META_FILE"
+ffmpeg -y -loglevel error -i "$INPUT" \
+    -vf "$MODE_FILTER,$SCALE_EXPR,metadata=print:file=$META_FILE" \
+    -fps_mode vfr -q:v "$JPEG_Q" \
+    "$OUTPUT_DIR/frames/raw_%04d.jpg"
+fi
+
+echo "==> Building meeting.md"
+python3 - "$OUTPUT_DIR" "$INPUT" "$NO_FRAMES" "$DEDUPE_ARG" <<'PYEOF'
+import json, re, subprocess, sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+src = Path(sys.argv[2])
+no_frames = sys.argv[3] == "1"
+dedupe_arg = sys.argv[4]
+dedupe_dist = None if dedupe_arg == "off" else int(dedupe_arg)
+frames = out / "frames"
+meta = frames / ".metadata.txt"
+
+times = []
+if meta.exists():
+    for line in meta.read_text().splitlines():
+        m = re.search(r"pts_time:(\d+(?:\.\d+)?)", line)
+        if m:
+            times.append(float(m.group(1)))
+
+def fmt(t):
+    s = int(t); h, r = divmod(s, 3600); m, s = divmod(r, 60)
+    return f"{h:02d}-{m:02d}-{s:02d}"
+
+def hms(t):
+    s = int(t); h, r = divmod(s, 3600); m, s = divmod(r, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+raw = sorted(p for p in frames.iterdir() if p.name.startswith("raw_")) if frames.is_dir() else []
+records = []  # (seconds, filename)
+for i, p in enumerate(raw):
+    if i >= len(times):
+        p.unlink()
+        continue
+    t = times[i]
+    target = frames / f"frame_{fmt(t)}.jpg"
+    suffix = 1
+    while target.exists():
+        target = frames / f"frame_{fmt(t)}_{suffix}.jpg"
+        suffix += 1
+    p.rename(target)
+    records.append((t, target.name))
+
+records.sort()
+
+if dedupe_dist is not None and records:
+    # 256-bit difference hash: decode to 17x16 grayscale, bit = left<right.
+    # 16x16 (not the classic 8x8) because screen-share frames all share the
+    # same page layout; at 8x8 the hash sees layout, not document content,
+    # and distinct slides collide.
+    def hash_from_px(px, off=0):
+        h = 0
+        for row in range(16):
+            base = off + row * 17
+            for col in range(16):
+                h = (h << 1) | (px[base + col] < px[base + col + 1])
+        return h
+
+    def dhash(path):
+        try:
+            r = subprocess.run(
+                ["ffmpeg", "-v", "error", "-i", str(path),
+                 "-vf", "scale=17:16", "-frames:v", "1",
+                 "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                capture_output=True, timeout=30)
+        except Exception:
+            return None
+        if r.returncode != 0 or len(r.stdout) != 272:
+            return None
+        return hash_from_px(r.stdout)
+
+    def batch_hashes():
+        # One ffmpeg decodes every frame via the concat demuxer (272 bytes of
+        # gray rawvideo each) — tens of thousands of frames in one spawn
+        # instead of one spawn per frame. Any mismatch (bad file, dropped
+        # frame) fails the whole batch; caller falls back to per-frame dhash.
+        lst = frames / ".hashlist.txt"
+        lst.write_text("".join(
+            "file '{}'\n".format(str((frames / name).resolve()).replace("'", "'\\''"))
+            for _, name in records))
+        try:
+            r = subprocess.run(
+                ["ffmpeg", "-v", "error", "-f", "concat", "-safe", "0",
+                 "-i", str(lst), "-vf", "scale=17:16",
+                 "-fps_mode", "passthrough",
+                 "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                capture_output=True, timeout=60 + len(records) // 10)
+        except Exception:
+            return None
+        finally:
+            lst.unlink(missing_ok=True)
+        if r.returncode != 0 or len(r.stdout) != 272 * len(records):
+            return None
+        return [hash_from_px(r.stdout, i * 272) for i in range(len(records))]
+
+    total = len(records)
+    print(f"   hashing {total} frames", flush=True)
+    all_hashes = batch_hashes()
+    kept, hashes = [], []
+    interval = max(1, min(2000, total // 4))
+    for i, (t, name) in enumerate(records):
+        # Fail-open: an undecodable frame (h is None) is always kept.
+        h = all_hashes[i] if all_hashes is not None else dhash(frames / name)
+        if h is not None and any((h ^ k).bit_count() <= dedupe_dist for k in hashes):
+            (frames / name).unlink()
+        else:
+            if h is not None:
+                hashes.append(h)
+            kept.append((t, name))
+        if (i + 1) % interval == 0 and i + 1 < total:
+            print(f"   dedupe {i + 1}/{total} (dropped {i + 1 - len(kept)})", flush=True)
+    records = kept
+    print(f"   deduped {total - len(records)} of {total} frames")
+
+segments = []
+tj = out / "transcript.json"
+if tj.exists():
+    data = json.loads(tj.read_text())
+    for seg in data.get("transcription", []):
+        off = seg.get("offsets") or {}
+        text = (seg.get("text") or "").strip()
+        if not text:
+            continue
+        start = off.get("from", 0) / 1000.0
+        end = off.get("to", off.get("from", 0)) / 1000.0
+        segments.append((start, end, text))
+
+starts = [r[0] for r in records]
+def bucket_for(t):
+    if not starts or t < starts[0]:
+        return None
+    lo, hi, ans = 0, len(starts) - 1, 0
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if starts[mid] <= t:
+            ans = mid; lo = mid + 1
+        else:
+            hi = mid - 1
+    return records[ans][1]
+
+buckets = {name: [] for _, name in records}
+preface = []
+for start, end, text in segments:
+    b = bucket_for(start)
+    (preface if b is None else buckets[b]).append((start, end, text))
+
+lines = [
+    f"# Meeting: {src.stem}",
+    "",
+    f"- Source: `{src.name}`",
+    f"- Segments: {len(segments)}" if no_frames
+        else f"- Frames: {len(records)}  ·  Segments: {len(segments)}",
+    "",
+]
+if no_frames:
+    for s, e, t in segments:
+        lines.append(f"> [{hms(s)} → {hms(e)}] {t}")
+    lines.append("")
+    (out / "meeting.md").write_text("\n".join(lines))
+    print(f"   wrote {len(segments)} transcript segments")
+    sys.exit(0)
+if preface:
+    lines += ["## Pre-frame transcript", ""]
+    for s, e, t in preface:
+        lines.append(f"> [{hms(s)} → {hms(e)}] {t}")
+    lines.append("")
+for ts, name in records:
+    lines += [f"## [{hms(ts)}]", "", f"![frame at {hms(ts)}](frames/{name})", ""]
+    for s, e, t in buckets[name]:
+        lines.append(f"> [{hms(s)} → {hms(e)}] {t}")
+    lines.append("")
+
+(out / "meeting.md").write_text("\n".join(lines))
+print(f"   wrote {len(records)} frames and {len(segments)} transcript segments")
+PYEOF
+
+if [[ $MD_ONLY -eq 1 ]]; then
+    mv "$OUTPUT_DIR/meeting.md" "$MD_FILE"
+    echo "==> Done."
+    echo "    Output: $MD_FILE"
+else
+    echo "==> Done."
+    echo "    Output: $OUTPUT_DIR"
+    echo "    Read:   $OUTPUT_DIR/meeting.md"
+fi

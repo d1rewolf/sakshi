@@ -1,0 +1,52 @@
+name: dotnet
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+          - os: windows-latest
+            rid: win-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+      - name: Test
+        run: dotnet test --configuration Release
+      - name: Publish
+        run: dotnet publish src/Sakshi.App --configuration Release --runtime ${{ matrix.rid }} --self-contained -p:PublishReadyToRun=true --output publish
+      - name: Publish the tray executable (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet publish src/Sakshi.Tray --configuration Release --runtime win-x64 --self-contained -p:PublishReadyToRun=true --output publish
+      - name: Check both Windows executables were published
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($exe in 'sakshi.exe', 'sakshiw.exe') {
+            if (-not (Test-Path "publish/$exe")) { throw "publish/$exe is missing" }
+          }

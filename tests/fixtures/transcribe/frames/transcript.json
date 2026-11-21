@@ -1,0 +1,11 @@
+{
+	"transcription": [
+		{ "offsets": { "from": 0, "to": 1200 }, "text": " Before the first frame." },
+		{ "offsets": { "from": 1200, "to": 2400 }, "text": "  " },
+		{ "offsets": { "from": 2500, "to": 9900 }, "text": " Right on the first frame, with café and \"quotes\"." },
+		{ "offsets": { "from": 9900, "to": 10000 }, "text": " Just before the second." },
+		{ "offsets": { "from": 10000, "to": 3700000 }, "text": " Exactly on the second frame." },
+		{ "offsets": { "from": 3700000, "to": 3701000 }, "text": " Between the second and third." },
+		{ "offsets": { "from": 3800000, "to": 3801000 }, "text": " After the third frame, an hour in." }
+	]
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The same app on the GUI subsystem: sakshiw.exe starts the tray without a console window. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>sakshiw</AssemblyName>
+    <RootNamespace>Sakshi.Tray</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sakshi.App/Sakshi.App.csproj" />
+  </ItemGroup>
+</Project>

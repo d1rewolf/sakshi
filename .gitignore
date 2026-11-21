@@ -1,0 +1,11 @@
+*.log
+*.mp4
+*.mkv
+/meetings/
+__pycache__/
+src/**/bin/
+tests/**/bin/
+**/obj/
+*.user
+TestResults/
+.idea/

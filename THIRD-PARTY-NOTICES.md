@@ -1,0 +1,31 @@
+# Third-party notices
+
+## Symbols Nerd Font Mono (bundled font)
+
+- File: `src/Sakshi.App/Assets/SymbolsNerdFontMono-Regular.ttf`, embedded in the app so the prompt glyphs show on macOS and Windows.
+- Name: Symbols Nerd Font Mono, Regular.
+- Version: Nerd Fonts v3.5.1, from the release asset `NerdFontsSymbolsOnly.zip`.
+- Source: https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.5.1
+- Font copyright (from its name table): Copyright (c) 2016, Ryan McIntyre.
+- Nerd Fonts project licence (covers the patcher and project files, not the icon sets below): MIT, copy in `src/Sakshi.App/Assets/LICENSE`; upstream https://github.com/ryanoasis/nerd-fonts/blob/v3.5.1/LICENSE.
+
+The font is a collection of icon sets, each under its own licence. The table is copied from the `README.md` shipped inside `NerdFontsSymbolsOnly.zip` (v3.5.1), the project's own list. For the full licence text of each set, see its upstream repository.
+
+| Icon set | Upstream | Version | Licence (as listed by Nerd Fonts) |
+|---|---|---|---|
+| Codicons | https://github.com/microsoft/vscode-codicons | 0.0.45 | CC BY 4.0 |
+| Devicons | https://github.com/devicons/devicon | 2.17.0 | MIT |
+| extraglyphs | https://github.com/source-foundry/Hack | - | MIT |
+| Font Awesome | https://github.com/FortAwesome/Font-Awesome | 6.5.1 | CC BY 4.0 |
+| Font Awesome Extension | https://github.com/AndreLZGava/font-awesome-extension | 0.0.3 | MIT |
+| Font Logos | https://github.com/lukas-w/font-logos | 1.3.0 | listed as "unlicensed"; see the upstream repository |
+| MaterialDesign | https://github.com/Templarian/MaterialDesign-Font | Oct 6, 2022 | Apache 2.0 |
+| Octicons | https://github.com/primer/octicons | 18.3.0 | MIT |
+| Seti and original | https://github.com/jesseweed/seti-ui | 0.8.1 | MIT |
+| Pomicons | https://github.com/gabrielelana/pomicons | 1.001 | OFL 1.1 RFN |
+| Powerline Extra | https://github.com/ryanoasis/powerline-extra-symbols | 1.200 | MIT |
+| Powerline Symbols | https://github.com/powerline/powerline | 1.000 (ca 2013) | MIT |
+| Power Symbols IEC | https://github.com/jloughry/Unicode | Feb 2015 | MIT |
+| Weather Icons | https://github.com/erikflowers/weather-icons | 2.0.10 (1.100) | OFL 1.1 |
+
+Attribution for the CC BY 4.0 sets (Codicons, Font Awesome): see https://creativecommons.org/licenses/by/4.0/ and the upstream repositories above. Apache 2.0 (MaterialDesign): https://www.apache.org/licenses/LICENSE-2.0. SIL OFL 1.1: https://openfontlicense.org/.

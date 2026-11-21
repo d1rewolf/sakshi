@@ -1,0 +1,80 @@
+# sakshi configuration (sourced by bash)
+
+# Where finished meetings land: $MEETINGS_DIR/<YYYY-MM-DD-Dow>/<name>/<name>.mp4 + transcript output
+MEETINGS_DIR="$HOME/meetings"
+
+# OBS scene and the window-capture source inside it
+OBS_SCENE="Scene"
+OBS_SOURCE="Screen Capture (PipeWire)"
+
+# 1 = pop the window picker on every start (clears the PipeWire restore token)
+# 0 = reuse whatever window OBS captured last time
+OBS_RESELECT_WINDOW=1
+
+# Arguments used when sakshi has to launch OBS itself
+OBS_LAUNCH_ARGS="--minimize-to-tray --disable-shutdown-check"
+
+# obs-websocket connection. Password is read from OBS's own config when empty.
+OBS_WS_HOST="127.0.0.1"
+OBS_WS_PORT=4455
+OBS_WS_PASSWORD=""
+
+# Transcription. TRANSCRIBE_CMD is a command name (looked up on PATH) or a
+# path; TRANSCRIBE_ARGS is passed before -o and the video path when the frame
+# prompt below is switched off or goes unanswered.
+TRANSCRIBE_CMD="transcribe-meeting"
+TRANSCRIBE_ARGS="-F changes -D 8"
+
+# 1 = ask how to capture frames once a recording is done; 0 = always use
+# TRANSCRIBE_ARGS. Each row of FRAMES_MODES is
+# <glyph>|<label>|<args>|<description>[|<hand-off>]; the menu shows the glyph,
+# then the label with the description under it. The glyph may be empty, its
+# field may not.
+#
+# <hand-off> is optional. When the row has one, it runs after the transcript
+# is ready, with the meeting folder added as its last argument; its output
+# goes to <folder>/handoff.log. If it fails, a critical notification names it
+# and the meeting stays as it is. Rows without it only transcribe. The two
+# "→ Notes" rows hand the meeting to a file-meeting command; delete them if
+# you don't have one.
+FRAMES_MODES=(
+  "|Changes|-F changes -D 8|Slides and screen shares (usual)"
+  "|Changes → Notes|-F changes -D 8|Slides and screen shares, then file it in your notes|file-meeting"
+  "|Scene cuts|-F scene|Video that keeps moving"
+  "|None|-F none|Transcript only, fastest"
+  "|Transcript only → Notes|-F none|No frames, then file it in your notes|file-meeting"
+  "|All|-F all|Every frame, debugging only"
+)
+
+# Seconds to wait for the meeting-name prompt before falling back to the
+# timestamp name (the recording is stored either way).
+NAME_PROMPT_TIMEOUT=900
+
+# 1 = when a recording stops, ask whether to save it before asking for a
+# name. "Don't save" asks once more, then moves the video to the trash
+# (gio trash). Dismissing either prompt saves. 0 = always save.
+KEEP_PROMPT=1
+KEEP_PROMPT_TIMEOUT=900
+
+# Housekeeping at every start: day folders older than KEEP_DAYS days move out
+# of $MEETINGS_DIR into ARCHIVE_DIR (empty = $MEETINGS_DIR/archives). Nothing
+# is deleted. 0 = never archive. `sakshi housekeep -n` shows what would move.
+KEEP_DAYS=14
+ARCHIVE_DIR=""
+
+# Every REMIND_INTERVAL seconds of recording (30 min), ask whether to stop.
+# Only "Stop recording" stops it; dismissing the prompt or letting it close
+# after REMIND_PROMPT_TIMEOUT seconds keeps recording. 0 = no reminders.
+REMIND_INTERVAL=1800
+REMIND_PROMPT_TIMEOUT=600
+
+# Name of the portal picker binary, used to wait for the picker to close
+PICKER_BIN="hyprland-preview-share-picker"
+
+# sakshi-share-picker (set as custom_picker_binary in ~/.config/hypr/xdph.conf)
+# moves windows whose class or title match this regex (case-insensitive) to
+# the top of the picker, then execs PICKER_REAL_BIN.
+PICKER_REAL_BIN="hyprland-preview-share-picker"
+PICKER_PRIORITY_REGEX="zoom|teams|meet\.google|webex|gotomeeting"
+# Tab the picker opens on: windows | outputs | region (empty = picker's own default)
+PICKER_DEFAULT_PAGE="windows"

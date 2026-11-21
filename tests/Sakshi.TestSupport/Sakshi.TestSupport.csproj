@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Sakshi.Core/Sakshi.Core.csproj" />
+    <ProjectReference Include="../../src/Sakshi.Platform/Sakshi.Platform.csproj" />
+  </ItemGroup>
+</Project>

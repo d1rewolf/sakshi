@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Sakshi.Platform/Sakshi.Platform.csproj" />
+    <ProjectReference Include="../../src/Sakshi.Core/Sakshi.Core.csproj" />
+    <ProjectReference Include="../Sakshi.TestSupport/Sakshi.TestSupport.csproj" />
+    <ProjectReference Include="../Sakshi.TestHelper/Sakshi.TestHelper.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <!-- The runner tests run the helper as a real command: copy its output next to the tests. -->
+  <Target Name="CopyTestHelper" AfterTargets="Build">
+    <ItemGroup>
+      <HelperFile Include="$(MSBuildThisFileDirectory)../Sakshi.TestHelper/bin/$(Configuration)/$(TargetFramework)/sakshi-test-helper*" />
+    </ItemGroup>
+    <Error Condition="'@(HelperFile)' == ''" Text="sakshi-test-helper output not found under ../Sakshi.TestHelper/bin/$(Configuration)/$(TargetFramework)" />
+    <Copy SourceFiles="@(HelperFile)" DestinationFolder="$(OutDir)test-helper" />
+  </Target>
+</Project>

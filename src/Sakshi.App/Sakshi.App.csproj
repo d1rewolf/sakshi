@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>sakshi</AssemblyName>
+    <RootNamespace>Sakshi.App</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sakshi.Core/Sakshi.Core.csproj" />
+    <ProjectReference Include="../Sakshi.Transcribe/Sakshi.Transcribe.csproj" />
+    <ProjectReference Include="../Sakshi.Search/Sakshi.Search.csproj" />
+    <ProjectReference Include="../Sakshi.Platform/Sakshi.Platform.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/**" Exclude="Assets/LICENSE" />
+    <EmbeddedResource Include="../../packaging/sakshi.png" LogicalName="sakshi.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Licence texts ship beside the binaries (Nerd Fonts symbols font, third-party notices). -->
+    <None Include="../../THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" Link="licenses/THIRD-PARTY-NOTICES.md" />
+    <None Include="Assets/LICENSE" CopyToPublishDirectory="PreserveNewest" Link="licenses/NerdFonts-LICENSE" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Labs.Notifications" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+</Project>

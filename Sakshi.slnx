@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sakshi.App/Sakshi.App.csproj" />
+    <Project Path="src/Sakshi.Core/Sakshi.Core.csproj" />
+    <Project Path="src/Sakshi.Platform/Sakshi.Platform.csproj" />
+    <Project Path="src/Sakshi.Search/Sakshi.Search.csproj" />
+    <Project Path="src/Sakshi.Tray/Sakshi.Tray.csproj" />
+    <Project Path="src/Sakshi.Transcribe/Sakshi.Transcribe.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sakshi.App.Tests/Sakshi.App.Tests.csproj" />
+    <Project Path="tests/Sakshi.Core.Tests/Sakshi.Core.Tests.csproj" />
+    <Project Path="tests/Sakshi.Platform.Tests/Sakshi.Platform.Tests.csproj" />
+    <Project Path="tests/Sakshi.Search.Tests/Sakshi.Search.Tests.csproj" />
+    <Project Path="tests/Sakshi.TestHelper/Sakshi.TestHelper.csproj" />
+    <Project Path="tests/Sakshi.TestSupport/Sakshi.TestSupport.csproj" />
+    <Project Path="tests/Sakshi.Transcribe.Tests/Sakshi.Transcribe.Tests.csproj" />
+  </Folder>
+</Solution>

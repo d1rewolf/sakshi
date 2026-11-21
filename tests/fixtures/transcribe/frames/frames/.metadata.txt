@@ -1,0 +1,6 @@
+frame:0    pts:25      pts_time:2.5
+lavfi.keep=1
+frame:1    pts:100     pts_time:10
+lavfi.keep=1
+frame:2    pts:37254   pts_time:3725.4
+lavfi.keep=1

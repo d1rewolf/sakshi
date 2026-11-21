@@ -1,0 +1,6 @@
+namespace Sakshi.Core.Ports;
+
+public interface IClock
+{
+    DateTimeOffset Now { get; }
+}

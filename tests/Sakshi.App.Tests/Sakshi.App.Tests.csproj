@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Sakshi.App/Sakshi.App.csproj" />
+    <ProjectReference Include="../../src/Sakshi.Core/Sakshi.Core.csproj" />
+    <ProjectReference Include="../../src/Sakshi.Platform/Sakshi.Platform.csproj" />
+    <ProjectReference Include="../Sakshi.TestSupport/Sakshi.TestSupport.csproj" />
+  </ItemGroup>
+</Project>
