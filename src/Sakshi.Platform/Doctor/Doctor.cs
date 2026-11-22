@@ -119,7 +119,7 @@ public static class Doctor
         const string name = "OBS WebSocket";
         var file = ObsWebSocketConfig.FileIn(paths.ObsConfigDir);
         var text = p.ReadFile(file);
-        if (text is null) return new DoctorCheck(name, true, "no config yet; sakshi turns the server on when it starts OBS", null);
+        if (text is null) return new DoctorCheck(name, true, "no config yet; Sakshi turns the server on when it starts OBS", null);
         try
         {
             if (ObsWebSocketConfig.ServerEnabled(ObsWebSocketConfig.Parse(file, text)))
@@ -131,7 +131,7 @@ public static class Doctor
         }
         return p.ObsRunning()
             ? new DoctorCheck(name, false, ObsWebSocketConfig.ServerOffMessage, null)
-            : new DoctorCheck(name, true, "server off; sakshi turns it on when it starts OBS", null);
+            : new DoctorCheck(name, true, "server off; Sakshi turns it on when it starts OBS", null);
     }
 
     private static DoctorCheck Ffmpeg(HostOs os, DoctorProbes p)
@@ -227,7 +227,7 @@ public static class Doctor
         // sakshi's picker hands the list to this one; without it, pointing the portal at sakshi breaks screen sharing.
         if (p.Which(PreviewPicker) is null)
             return new DoctorCheck(name, false,
-                $"optional: sakshi's picker lists meeting windows first, and needs {PreviewPicker}, which is not installed", null,
+                $"optional: Sakshi's picker lists meeting windows first, and needs {PreviewPicker}, which is not installed", null,
                 Required: false);
 
         const string restart = "systemctl --user restart xdg-desktop-portal-hyprland";
@@ -236,11 +236,11 @@ public static class Doctor
         // Appending is safe only when the file has no screencopy section yet; otherwise it is a hand edit.
         if (text is null || !ScreencopySection.IsMatch(text))
             return new DoctorCheck(name, false,
-                "optional: Hyprland does not use sakshi's picker, which lists meeting windows first", 
+                "optional: Hyprland does not use Sakshi's picker, which lists meeting windows first", 
                 $"{makeWrapper} && mkdir -p \"{configHome}/hypr\" && printf '\\nscreencopy {{\\n    custom_picker_binary = %s\\n}}\\n' \"{wrapper}\" >> \"{conf}\" && {restart}",
                 Required: false);
         return new DoctorCheck(name, false,
-            $"optional: Hyprland does not use sakshi's picker, which lists meeting windows first. Run the command, then put " +
+            $"optional: Hyprland does not use Sakshi's picker, which lists meeting windows first. Run the command, then put " +
             $"`custom_picker_binary = {wrapper}` in the screencopy {{ }} section of {conf} and run `{restart}`",
             makeWrapper, Required: false);
     }

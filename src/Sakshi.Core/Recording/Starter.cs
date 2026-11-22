@@ -28,7 +28,7 @@ public sealed class Starter(
 {
     private sealed class StartFailed(string message) : Exception(message);
 
-    private const string UnnamedWaiting = "An unnamed recording is waiting — click to name and store it.";
+    private const string UnnamedWaiting = "An unnamed recording is waiting — choose Name recording in the Sakshi menu to name and store it.";
 
     private readonly Func<TimeSpan, CancellationToken, Task> _delay = delay ?? Task.Delay;
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(250);

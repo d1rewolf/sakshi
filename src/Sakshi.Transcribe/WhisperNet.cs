@@ -24,7 +24,7 @@ public sealed class WhisperNet(int? threads = null) : IWhisper
         await using var wav = File.OpenRead(wavPath);
         var segments = new List<Segment>();
         await foreach (var s in processor.ProcessAsync(wav, ct))
-            segments.Add(new Segment(s.Start, s.End, s.Text));
+            if (!Segment.IsBlank(s.Text)) segments.Add(new Segment(s.Start, s.End, s.Text));
         return segments;
     }
 }

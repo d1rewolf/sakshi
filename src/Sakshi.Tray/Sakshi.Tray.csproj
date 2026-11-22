@@ -4,6 +4,8 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>sakshiw</AssemblyName>
     <RootNamespace>Sakshi.Tray</RootNamespace>
+    <!-- The icon Windows shows for the exe: Explorer, the taskbar, and windows that set none of their own. -->
+    <ApplicationIcon>../../packaging/sakshi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Sakshi.App/Sakshi.App.csproj" />

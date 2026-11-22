@@ -84,7 +84,7 @@ public sealed class TrayApp : PromptApplication
         menu.Add(quit);
 
         _icon = new TrayIcon { Menu = menu, IsVisible = true };
-        _icon.Clicked += (_, _) => host.Toggle();
+        if (ClickToggles) _icon.Clicked += (_, _) => host.Toggle();
         TrayIcon.SetIcons(this, new TrayIcons { _icon });
 
         Refresh(host);
@@ -96,6 +96,12 @@ public sealed class TrayApp : PromptApplication
         };
         _timer.Start();
     }
+
+    /// <summary>
+    /// A click on the icon starts or stops a recording only on Linux, where bars such as Omarchy's send a left click
+    /// to the app. On Windows a left click is easy to make by accident, and on macOS a click opens the menu.
+    /// </summary>
+    internal static bool ClickToggles => OperatingSystem.IsLinux();
 
     /// <summary>Opens the setup window when the start check asks for it (something missing, or an installed copy's first start).</summary>
     private async Task ShowSetupIfWantedAsync(TrayHost host)

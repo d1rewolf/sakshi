@@ -43,11 +43,12 @@ public sealed class ObsWindowChooserTests : IDisposable
     [Fact]
     public async Task Mac_lists_windows_meeting_first_and_sets_the_chosen_id()
     {
-        _prompter.Answer("[zoom.us] Zoom Meeting");
+        _prompter.Answer("Zoom Meeting");
         var ok = await Select(ChooserOs.MacOS, [Item(" ", true, 0), Item("[Safari] News", true, 4), Item("[zoom.us] Zoom Meeting", true, 9)]);
 
         Assert.True(ok);
-        Assert.Equal(["[zoom.us] Zoom Meeting", "[Safari] News"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["Zoom Meeting", "News"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["zoom.us", "Safari"], _prompter.Rows[0].Select(r => r.Description));
         Assert.Equal("Pick the window to record", _prompter.Shown[0]);
         Assert.Equal(TimeSpan.FromMinutes(3), _prompter.Timeouts[0]);
         Assert.Equal(JsonValueKind.Number, LastSettings().GetProperty("window").ValueKind);
@@ -60,7 +61,7 @@ public sealed class ObsWindowChooserTests : IDisposable
     public async Task Windows_sets_the_string_value_and_method_2()
     {
         const string value = "Zoom Meeting:ZPContentViewWndClass:Zoom.exe";
-        _prompter.Answer("[Zoom.exe]: Zoom Meeting");
+        _prompter.Answer("Zoom Meeting");
         var ok = await Select(ChooserOs.Windows, [Item("[Select a window]", false, ""), Item("[Zoom.exe]: Zoom Meeting", true, value)]);
 
         Assert.True(ok);
@@ -73,10 +74,11 @@ public sealed class ObsWindowChooserTests : IDisposable
     {
         // OBS's value is title:class:exe, so two same-titled windows of one app can't be told apart.
         const string meet = "Meet:Chrome_WidgetWin_1:chrome.exe";
-        _prompter.Answer("[chrome.exe]: Meet");
+        _prompter.Answer("Meet");
         await Select(ChooserOs.Windows, [Item("[chrome.exe]: Meet", true, meet), Item("[chrome.exe]: Meet", true, meet)]);
 
-        Assert.Equal(["[chrome.exe]: Meet"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["Meet"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["chrome.exe"], _prompter.Rows[0].Select(r => r.Description));
         Assert.Equal(meet, LastSettings().GetProperty("window").GetString());
     }
 
@@ -84,22 +86,22 @@ public sealed class ObsWindowChooserTests : IDisposable
     public async Task Windows_distinct_values_with_the_same_name_get_numbered_and_map_back()
     {
         // Same title, different window class: OBS can tell them apart.
-        _prompter.Answer("[chrome.exe]: Meet (2)");
+        _prompter.Answer("Meet (2)");
         await Select(ChooserOs.Windows, [
             Item("[chrome.exe]: Meet", true, "Meet:Chrome_WidgetWin_1:chrome.exe"),
             Item("[chrome.exe]: Meet", true, "Meet:Chrome_RenderWidgetHostHWND:chrome.exe")]);
 
-        Assert.Equal(["[chrome.exe]: Meet", "[chrome.exe]: Meet (2)"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["Meet", "Meet (2)"], _prompter.Rows[0].Select(r => r.Label));
         Assert.Equal("Meet:Chrome_RenderWidgetHostHWND:chrome.exe", LastSettings().GetProperty("window").GetString());
     }
 
     [Fact]
     public async Task Mac_same_titles_get_numbered_and_map_back()
     {
-        _prompter.Answer("[Google Chrome] Meet (2)");
+        _prompter.Answer("Meet (2)");
         await Select(ChooserOs.MacOS, [Item("[Google Chrome] Meet", true, 11), Item("[Google Chrome] Meet", true, 12)]);
 
-        Assert.Equal(["[Google Chrome] Meet", "[Google Chrome] Meet (2)"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["Meet", "Meet (2)"], _prompter.Rows[0].Select(r => r.Label));
         Assert.Equal(12, LastSettings().GetProperty("window").GetInt32());
     }
 
@@ -112,6 +114,31 @@ public sealed class ObsWindowChooserTests : IDisposable
         var labels = _prompter.Rows[0].Select(r => r.Label).ToArray();
         Assert.Equal(["Meet", "Meet (3)", "Meet (2)"], labels);
         Assert.Equal(2, LastSettings().GetProperty("window").GetInt32());
+    }
+
+    [Fact]
+    public async Task The_same_title_in_two_apps_is_told_apart_by_the_app_line()
+    {
+        _prompter.Answer("Standup (2)");
+        await Select(ChooserOs.Windows, [
+            Item("[Teams.exe]: Standup", true, "Standup:TeamsWebView:Teams.exe"),
+            Item("[chrome.exe]: Standup", true, "Standup:Chrome_WidgetWin_1:chrome.exe"),
+            Item("[Untitled.exe]: ", true, "x:y:Untitled.exe")]);
+
+        Assert.Equal(["Standup", "Standup (2)", "Untitled.exe"], _prompter.Rows[0].Select(r => r.Label));
+        Assert.Equal(["Teams.exe", "chrome.exe", "Untitled.exe"], _prompter.Rows[0].Select(r => r.Description));
+        Assert.Equal("Standup:Chrome_WidgetWin_1:chrome.exe", LastSettings().GetProperty("window").GetString());
+    }
+
+    [Fact]
+    public async Task Sakshis_own_windows_are_not_offered()
+    {
+        _prompter.Answer("Standup");
+        await Select(ChooserOs.Windows, [
+            Item("[sakshiw.exe]: Live transcript", true, "Live transcript:Avalonia-x:sakshiw.exe"),
+            Item("[Teams.exe]: Standup", true, "Standup:TeamsWebView:Teams.exe")]);
+
+        Assert.Equal(["Standup"], _prompter.Rows[0].Select(r => r.Label));
     }
 
     [Fact]

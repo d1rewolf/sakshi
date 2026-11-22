@@ -33,7 +33,7 @@ public sealed class LiveWhisperNet : ILiveWhisper, IDisposable
     {
         var segments = new List<Segment>();
         await foreach (var s in _processor.ProcessAsync(wav, ct))
-            segments.Add(new Segment(s.Start, s.End, s.Text));
+            if (!Segment.IsBlank(s.Text)) segments.Add(new Segment(s.Start, s.End, s.Text));
         return segments;
     }
 

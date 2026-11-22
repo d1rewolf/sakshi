@@ -258,7 +258,7 @@ public sealed class Recorder(
         pick = await ChooseAsync("Delete this recording?",
         [
             new PromptRow("\U000F0193", "Keep it", "Go back to naming it"),
-            new PromptRow("\U000F01B4", "Yes, delete it", "Moves the video to the trash"),
+            new PromptRow("\U000F01B4", "Yes, delete it", OperatingSystem.IsWindows() ? "Moves the video to the Recycle Bin" : "Moves the video to the trash"),
         ], timeout, ct);
         if (pick == "Yes, delete it")
         {

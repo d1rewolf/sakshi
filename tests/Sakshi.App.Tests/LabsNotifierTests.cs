@@ -37,4 +37,12 @@ public sealed class LabsNotifierTests
         Assert.True(n.Drain().IsCompleted);
         Assert.Empty(log.Lines);
     }
+
+    [Fact]
+    public void The_toast_icon_is_the_png_beside_the_exe_when_shipped()
+    {
+        var dir = Path.Combine("x", "app");
+        Assert.Equal(Path.Combine(dir, "sakshi.png"), LabsNotifier.IconPath(dir, _ => true));
+        Assert.Null(LabsNotifier.IconPath(dir, _ => false));
+    }
 }

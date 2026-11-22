@@ -39,14 +39,15 @@ Its menu has:
 | **Start at login** | Whether Sakshi starts when you log in |
 | **Quit** | Closes Sakshi; a transcription that is running carries on |
 
-On Windows and Omarchy a left click on the icon starts or stops a recording.
-On macOS (and on some Linux desktops) a click opens the menu instead.
+On Omarchy a left click on the icon starts or stops a recording. On Windows,
+right-click the icon for the menu; on macOS (and on some Linux desktops) a
+click opens the menu.
 
 ## Recording a meeting
 
 1. Join the meeting as usual.
-2. Choose **Start recording** (or click the icon, or press your keyboard
-   shortcut, see below).
+2. Choose **Start recording** (or press your keyboard shortcut, see below; on
+   Omarchy you can also click the icon).
 3. Sakshi asks which window to record. Pick the meeting window: Sakshi lists
    Zoom, Teams, Google Meet, Webex and GoToMeeting windows first.
 4. A notification says the recording started. The icon blinks while it records.

@@ -3,6 +3,8 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>sakshi</AssemblyName>
     <RootNamespace>Sakshi.App</RootNamespace>
+    <!-- The icon Windows shows for the exe: Explorer, the taskbar, and windows that set none of their own. -->
+    <ApplicationIcon>../../packaging/sakshi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Sakshi.Core/Sakshi.Core.csproj" />
@@ -18,6 +20,8 @@
     <!-- Licence texts ship beside the binaries (Nerd Fonts symbols font, third-party notices). -->
     <None Include="../../THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" Link="licenses/THIRD-PARTY-NOTICES.md" />
     <None Include="Assets/LICENSE" CopyToPublishDirectory="PreserveNewest" Link="licenses/NerdFonts-LICENSE" />
+    <!-- The icon Windows shows on Sakshi's notifications (LabsNotifier). -->
+    <None Include="../../packaging/sakshi.png" CopyToPublishDirectory="PreserveNewest" Link="sakshi.png" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.6" />

@@ -30,7 +30,17 @@ internal sealed class LabsNotifier : INotifier
 
     /// <summary>Registers the toast manager on the tray's AppBuilder. Call on Windows only.</summary>
     public static AppBuilder Register(AppBuilder builder) =>
-        builder.WithAppNotifications(new AppNotificationOptions { AppName = AppName, AppUserModelId = AppUserModelId });
+        builder.WithAppNotifications(new AppNotificationOptions
+        {
+            AppName = AppName, AppUserModelId = AppUserModelId, AppIcon = IconPath(AppContext.BaseDirectory, File.Exists),
+        });
+
+    /// <summary>The eye for the toast's header (sakshi.png, shipped beside the exe); null leaves Windows' blank icon.</summary>
+    internal static string? IconPath(string dir, Func<string, bool> exists)
+    {
+        var path = Path.Combine(dir, "sakshi.png");
+        return exists(path) ? path : null;
+    }
 
     /// <summary>
     /// Labs splices the title and message into the toast XML unescaped, so a meeting called

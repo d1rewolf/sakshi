@@ -42,7 +42,7 @@ public sealed class StopTests : IDisposable
             [new PromptRow("\U000F0193", "Save it", "Name it and transcribe"), new PromptRow("\U000F01B4", "Don't save", "Throw this recording away")],
             _f.Prompter.Rows[0]);
         Assert.Equal(
-            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", "Moves the video to the trash")],
+            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", OperatingSystem.IsWindows() ? "Moves the video to the Recycle Bin" : "Moves the video to the trash")],
             _f.Prompter.Rows[1]);
     }
 

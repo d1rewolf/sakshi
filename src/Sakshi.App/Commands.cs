@@ -202,6 +202,7 @@ internal static class Commands
         if (send[0] == "import" && send.Length > 1) send[1] = Path.GetFullPath(send[1]);
         var socket = TrayInstance.SocketPathFor(paths.StateDir, Environment.GetEnvironmentVariable).Path;
 
+        ForegroundRights.Share();
         var result = await TrayIpc.SendAsync(socket, send, ReplyTimeout, ct);
         if (result is null)
         {

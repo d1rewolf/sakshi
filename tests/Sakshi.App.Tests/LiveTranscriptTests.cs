@@ -99,4 +99,20 @@ public sealed class LiveTranscriptTests
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(LiveTranscript.EndedText, w.Status);
     });
+
+    [Fact]
+    public Task Before_anyone_speaks_the_window_says_so_and_has_nothing_to_copy() => HeadlessHost.Run(() =>
+    {
+        var live = Live();
+        var w = new LiveTranscriptWindow(live, _ => { });
+        Assert.True(w.ShowsNothingYet);
+        Assert.False(w.CopyButton.IsEnabled);
+
+        live.Accept("""{"start":1,"end":2,"text":" Hello."}""");
+        w.Render();
+        Assert.False(w.ShowsNothingYet);
+        Assert.True(w.CopyButton.IsEnabled);
+        Assert.Equal(["[00:01]  Hello."], w.ShownLines);   // whisper's leading space is dropped
+        return Task.CompletedTask;
+    });
 }

@@ -18,7 +18,7 @@ internal sealed class LiveTranscript : IAsyncDisposable
     internal const string StartingText = "Starting… the first lines appear about 10 seconds after someone speaks.";
     internal const string DownloadingText = "Downloading the speech model (about 150 MB, once)…";
     internal const string EndedText =
-        "The recording has stopped. The full transcript, with screen pictures, will be in meeting.md when it is ready.";
+        "The recording has stopped. If you save it, the full transcript, with screen pictures, will be in meeting.md when it is ready.";
     internal const string UnreadableText =
         "Sakshi cannot read OBS's recording until it ends, because OBS records to plain MP4. In OBS, choose " +
         "Settings → Output → Recording Format → Hybrid MP4 (or MKV); live transcripts work from the next recording. " +

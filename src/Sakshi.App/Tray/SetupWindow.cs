@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Sakshi.App.Prompts;
 using Sakshi.Platform.Doctor;
 
 namespace Sakshi.App.Tray;
@@ -16,19 +17,27 @@ internal sealed class SetupWindow : Window
     internal const string WindowTitle = "Set up Sakshi";
     internal const string AllSet = "Everything Sakshi needs is in place. You can close this window.";
     internal const string OnlyOptional = "Sakshi has what it needs to record. The optional items below make it nicer.";
-    internal const string HowTo = "Where a command is shown, run it in a terminal (Copy puts it on the clipboard), then choose Check again.";
 
-    private static readonly IBrush Good = new SolidColorBrush(Color.FromRgb(0x7f, 0xc8, 0x7f));
-    private static readonly IBrush Bad = new SolidColorBrush(Color.FromRgb(0xf0, 0x80, 0x70));
-    private static readonly IBrush Info = new SolidColorBrush(Color.FromRgb(0x8a, 0xb4, 0xf8));
-    private static readonly FontFamily Mono = new("Cascadia Mono, Menlo, DejaVu Sans Mono, monospace");
+    /// <summary>How to use a fix command, naming the terminal this system has.</summary>
+    internal static string HowTo => $"Where a command is shown, run it in {Terminal} (Copy puts it on the clipboard), then choose Check again.";
+
+    private static string Terminal => OperatingSystem.IsWindows() ? "PowerShell" : OperatingSystem.IsMacOS() ? "Terminal" : "a terminal";
+
+    private static readonly IBrush Good = Witness.Brush(Witness.Good);
+    private static readonly IBrush Bad = Witness.Brush(Witness.Bad);
+    private static readonly IBrush Info = Witness.Brush(Witness.Info);
+    private static readonly IBrush Muted = Witness.Brush(Witness.Muted);
+
+    /// <summary>Width of the mark column; the detail, command and buttons of a row start after it.</summary>
+    private const double MarkWidth = 24;
 
     private readonly Func<Task<IReadOnlyList<DoctorCheck>>> _check;
     private readonly Action<string> _openUrl;
     private readonly Action<string> _log;
-    private readonly TextBlock _summary = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14 };
-    private readonly StackPanel _rows = new() { Spacing = 14 };
+    private readonly TextBlock _summary = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14, LineHeight = 20 };
+    private readonly StackPanel _rows = new() { Spacing = 16 };
     private readonly Button _again = new() { Content = "Check again" };
+    private readonly Button _close = new() { Content = "Close" };
 
     public SetupWindow(IReadOnlyList<DoctorCheck> checks, Func<Task<IReadOnlyList<DoctorCheck>>> check, Action<string> openUrl,
         Action<string> log)
@@ -40,20 +49,20 @@ internal sealed class SetupWindow : Window
         Width = 640;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Witness.Brand(this);
 
         _again.Click += async (_, _) =>
         {
             try { await CheckAgainAsync(); }
             catch (Exception e) { _log($"setup: check again failed: {e.Message}"); }
         };
-        var close = new Button { Content = "Close" };
-        close.Click += (_, _) => Close();
+        _close.Click += (_, _) => Close();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(_again);
-        buttons.Children.Add(close);
+        buttons.Children.Add(_close);
 
-        var root = new StackPanel { Margin = new Thickness(20), Spacing = 16 };
-        root.Children.Add(new TextBlock { Text = WindowTitle, FontSize = 20, FontWeight = FontWeight.SemiBold });
+        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20), Spacing = 18 };
+        root.Children.Add(new TextBlock { Text = WindowTitle, FontSize = 22, FontWeight = FontWeight.SemiBold });
         root.Children.Add(_summary);
         root.Children.Add(new ScrollViewer
         {
@@ -73,6 +82,8 @@ internal sealed class SetupWindow : Window
 
     internal Button CheckAgainButton => _again;
 
+    internal Button CloseButton => _close;
+
     private void Render(IReadOnlyList<DoctorCheck> checks)
     {
         var missing = checks.Count(c => !c.Ok && c.Required);
@@ -82,6 +93,10 @@ internal sealed class SetupWindow : Window
             : checks.Any(c => !c.Ok) ? $"{OnlyOptional}{(anyFix ? " " + HowTo : "")}" : AllSet;
         _rows.Children.Clear();
         foreach (var c in checks) _rows.Children.Add(Row(c));
+        // The main button: Check again while something is left to do, Close once everything is in place.
+        var done = checks.All(c => c.Ok);
+        _again.Classes.Set("accent", !done);
+        _close.Classes.Set("accent", done);
     }
 
     private Control Row(DoctorCheck c)
@@ -89,28 +104,31 @@ internal sealed class SetupWindow : Window
         // ℹ: advice (optional, or a setting Sakshi cannot check), not a pass or a failure.
         var (mark, brush) = !c.Ok ? (c.Required ? ("✗", Bad) : ("ℹ", Info))
             : c.SettingsUrl is not null || !c.Required ? ("ℹ", Info) : ("✓", Good);
-        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var head = new Grid { ColumnDefinitions = new ColumnDefinitions($"{MarkWidth},*") };
         head.Children.Add(new TextBlock { Text = mark, Foreground = brush, FontWeight = FontWeight.Bold, FontSize = 15 });
-        head.Children.Add(new TextBlock { Text = c.Name, FontWeight = FontWeight.SemiBold, FontSize = 15 });
+        var name = new TextBlock { Text = c.Name, FontWeight = FontWeight.SemiBold, FontSize = 15 };
+        Grid.SetColumn(name, 1);
+        head.Children.Add(name);
 
+        var indent = new Thickness(MarkWidth, 0, 0, 0);
         var row = new StackPanel { Spacing = 6, Tag = c.Name };
         row.Children.Add(head);
-        row.Children.Add(new TextBlock { Text = c.Detail, TextWrapping = TextWrapping.Wrap, Opacity = 0.8, Margin = new Thickness(23, 0, 0, 0) });
-        if (!c.Ok && c.Fix is { } fix) row.Children.Add(FixLine(fix));
+        row.Children.Add(new TextBlock { Text = c.Detail, TextWrapping = TextWrapping.Wrap, Foreground = Muted, Margin = indent });
+        if (!c.Ok && c.Fix is { } fix) row.Children.Add(FixLine(fix, indent));
         if (c.SettingsUrl is { } url)
         {
-            var open = new Button { Content = "Open settings", Margin = new Thickness(23, 0, 0, 0) };
+            var open = new Button { Content = "Open settings", Margin = indent };
             open.Click += (_, _) => _openUrl(url);
             row.Children.Add(open);
         }
         return row;
     }
 
-    private Control FixLine(string fix)
+    private Control FixLine(string fix, Thickness indent)
     {
         var text = new TextBox
         {
-            Text = fix, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontFamily = Mono, FontSize = 12,
+            Text = fix, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontFamily = Witness.Mono, FontSize = 12,
         };
         var copy = new Button { Content = "Copy", VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
         copy.Click += async (_, _) =>
@@ -129,7 +147,7 @@ internal sealed class SetupWindow : Window
                 copy.Content = "Copy failed — select the text";
             }
         };
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(23, 0, 0, 0) };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = indent };
         grid.Children.Add(text);
         Grid.SetColumn(copy, 1);
         grid.Children.Add(copy);

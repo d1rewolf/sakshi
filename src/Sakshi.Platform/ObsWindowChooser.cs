@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using Sakshi.Core.Config;
 using Sakshi.Core.Obs;
@@ -18,7 +19,21 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
 {
     private const string Title = "Pick the window to record";
 
-    private sealed record Candidate(string Name, JsonElement Value);
+    /// <summary>A window as OBS names it: "[App] Title" on macOS, "[app.exe]: Title" on Windows.</summary>
+    private sealed record Candidate(string Name, JsonElement Value)
+    {
+        private Match Parts => OwnerAndTitle.Match(Name);
+
+        /// <summary>What the row says: the window's title (the app's name for a window without one).</summary>
+        public string Title => Parts is { Success: true } m ? (m.Groups["title"].Value.Trim() is { Length: > 0 } t ? t : m.Groups["app"].Value) : Name;
+
+        /// <summary>The app the window belongs to, shown under the title; empty when OBS's name does not say.</summary>
+        public string App => Parts is { Success: true } m ? m.Groups["app"].Value : "";
+    }
+
+    private static readonly HashSet<string> OwnApps = new(["sakshi", "sakshi.exe", "sakshiw.exe"], StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Regex OwnerAndTitle = new(@"^\[(?<app>[^\]]+)\]:? ?(?<title>.*)$");
 
     public string InputKind => os == ChooserOs.MacOS ? "screen_capture" : "window_capture";
 
@@ -33,12 +48,13 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
         var reply = await obs.RequestAsync("GetInputPropertiesListPropertyItems",
             new { inputName = source, propertyName = "window" }, ct);
 
-        var windows = Candidates(reply);
+        // Sakshi's own windows (Setup, the live transcript) are never the meeting.
+        var windows = Candidates(reply).Where(w => !OwnApps.Contains(w.App)).ToList();
         if (windows.Count == 0) throw new InvalidOperationException(NoWindowsMessage);
 
         var ordered = WindowPriority.Order(windows, w => w.Name, config.PickerPriorityRegex);
         var labelled = Labelled(ordered);
-        var rows = labelled.Select(w => new PromptRow("", w.Label, "")).ToList();
+        var rows = labelled.Select(w => new PromptRow("", w.Label, w.Window.App)).ToList();
 
         var chosen = await prompter.ChooseAsync(Title, rows, TimeSpan.FromMinutes(3), ct);
         if (chosen is null)
@@ -78,24 +94,24 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
         : value.ValueKind == JsonValueKind.String && value.GetString() == "";
 
     /// <summary>
-    /// Distinct windows can share a title (macOS: two CGWindowIDs): number the repeats so each label is unique and
-    /// maps back to its window. A number is skipped when a real window already has that title.
+    /// Distinct windows can share a title (macOS: two CGWindowIDs; or two apps): number the repeats so each label is
+    /// unique and maps back to its window. A number is skipped when a real window already has that title.
     /// </summary>
     private static List<(string Label, Candidate Window)> Labelled(IReadOnlyList<Candidate> ordered)
     {
-        var used = ordered.Select(w => w.Name).ToHashSet();
+        var used = ordered.Select(w => w.Title).ToHashSet();
         var firstSeen = new HashSet<string>();
         var result = new List<(string, Candidate)>();
         foreach (var w in ordered)
         {
-            if (firstSeen.Add(w.Name))
+            if (firstSeen.Add(w.Title))
             {
-                result.Add((w.Name, w));
+                result.Add((w.Title, w));
                 continue;
             }
             var n = 2;
-            while (used.Contains($"{w.Name} ({n})")) n++;
-            var label = $"{w.Name} ({n})";
+            while (used.Contains($"{w.Title} ({n})")) n++;
+            var label = $"{w.Title} ({n})";
             used.Add(label);
             result.Add((label, w));
         }

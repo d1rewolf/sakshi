@@ -154,7 +154,7 @@ public sealed class StarterTests : IAsyncDisposable
         Assert.Equal(naming, _store.Load().Capture);
         Assert.Empty(Types());
         Assert.Equal(0, _launcher.Ensured);
-        Assert.Contains(_notifier.Sent, n => n is (Urgency.Critical, "Sakshi", "An unnamed recording is waiting — click to name and store it."));
+        Assert.Contains(_notifier.Sent, n => n is (Urgency.Critical, "Sakshi", "An unnamed recording is waiting — choose Name recording in the Sakshi menu to name and store it."));
     }
 
     [Fact]

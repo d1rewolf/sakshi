@@ -15,7 +15,17 @@ internal sealed record TrayView(string Tooltip, TrayIconState Icon, string Statu
     public static TrayView For(Status status, bool blinkOn) => new(
         Name,
         Icons.StateFor(status.State, blinkOn),
-        status.Tooltip,
+        MenuLine(status.Tooltip),
         status.State switch { "recording" => "Stop recording", "naming" => "Name recording", _ => "Start recording" },
         status.State == "recording");
+
+    /// <summary>
+    /// The status for the menu's first line. The status's own " — click to …" hint is for bars that run
+    /// <c>sakshi status</c> and toggle on a click; inside the menu, the next item does it.
+    /// </summary>
+    internal static string MenuLine(string tooltip)
+    {
+        var hint = tooltip.IndexOf(" — click to ", StringComparison.Ordinal);
+        return hint < 0 ? tooltip : tooltip[..hint];
+    }
 }

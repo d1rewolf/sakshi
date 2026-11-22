@@ -50,7 +50,7 @@ public class AvaloniaPrompterTests
         var p = new AvaloniaPrompter();
         var task = p.ChooseAsync("Recording stopped", Rows, Long, CancellationToken.None);
         var w = await Next<ChooserWindow>(p);
-        Assert.Equal("sakshi", w.Title);
+        Assert.Equal(OperatingSystem.IsLinux() ? "sakshi" : "Sakshi", w.Title);
         Assert.Equal(560, w.Width);
         Assert.True(w.Topmost);
         Assert.False(w.CanResize);
@@ -216,13 +216,25 @@ public class AvaloniaPrompterTests
         var p = new AvaloniaPrompter();
         var task = p.AskTextAsync("Meeting name", Long, CancellationToken.None);
         var w = await Next<TextPromptWindow>(p);
-        Assert.Equal("sakshi", w.Title);
+        Assert.Equal(OperatingSystem.IsLinux() ? "sakshi" : "Sakshi", w.Title);
         Assert.Equal(560, w.Width);
         Assert.Contains("Meeting name", w.GetVisualTexts());
         Assert.True(w.Input.IsFocused);
         w.KeyTextInput("Weekly sync");
         Press(w, Key.Enter);
         Assert.Equal("Weekly sync", await Await(task));
+    });
+
+    [Fact]
+    public Task Text_prompt_OK_button_accepts_like_Enter() => HeadlessHost.Run(async () =>
+    {
+        var p = new AvaloniaPrompter();
+        var task = p.AskTextAsync("Meeting name", Long, CancellationToken.None);
+        var w = await Next<TextPromptWindow>(p);
+        Assert.Contains(TextPromptWindow.HintText, w.GetVisualTexts());
+        w.KeyTextInput("Standup");
+        w.Ok.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("Standup", await Await(task));
     });
 
     [Fact]

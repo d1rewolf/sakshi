@@ -20,10 +20,10 @@ public sealed record SakshiConfig
     public int FramesPromptTimeout { get; init; } = 900;
     public IReadOnlyList<FrameMode> FramesModes { get; init; } =
     [
-        new("", "Changes", "-F changes -D 8", "Slides and screen shares (usual)", null),
-        new("", "Scene cuts", "-F scene", "Video that keeps moving", null),
-        new("", "None", "-F none", "Transcript only, fastest", null),
-        new("", "All", "-F all", "Every frame, debugging only", null),
+        new("\uf03e", "Changes", "-F changes -D 8", "Slides and screen shares (usual)", null),
+        new("\uf03d", "Scene cuts", "-F scene", "Video that keeps moving", null),
+        new("\uf044", "None", "-F none", "Transcript only, fastest", null),
+        new("\uf030", "All", "-F all", "Every frame, debugging only", null),
     ];
     public int NamePromptTimeout { get; init; } = 900;
     public bool KeepPrompt { get; init; } = true;

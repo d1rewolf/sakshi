@@ -67,4 +67,20 @@ public sealed class SetupWindowTests
         Assert.True(w.CheckAgainButton.IsEnabled);
         Assert.Equal("Check again", w.CheckAgainButton.Content);
     });
+
+    [Fact]
+    public Task The_main_button_is_Check_again_until_everything_is_in_place() => HeadlessHost.Run(async () =>
+    {
+        var fixedObs = Obs with { Ok = true, Detail = "/usr/bin/obs" };
+        var w = new SetupWindow([Obs], () => Task.FromResult<IReadOnlyList<DoctorCheck>>([fixedObs]), _ => { }, _ => { });
+        Assert.Contains("accent", w.CheckAgainButton.Classes);
+        Assert.DoesNotContain("accent", w.CloseButton.Classes);
+        await w.CheckAgainAsync();
+        Assert.DoesNotContain("accent", w.CheckAgainButton.Classes);
+        Assert.Contains("accent", w.CloseButton.Classes);
+    });
+
+    [Fact]
+    public void The_fix_command_names_this_systems_terminal() =>
+        Assert.Contains(OperatingSystem.IsWindows() ? "PowerShell" : OperatingSystem.IsMacOS() ? "in Terminal" : "a terminal", SetupWindow.HowTo);
 }

@@ -124,6 +124,13 @@ public sealed class TrayUiTests : IDisposable
         Assert.Equal("Sakshi", TrayView.For(new Status(state, statusText, "0:12"), blinkOn: true).Tooltip);
 
     [Theory]
+    [InlineData("Recording meeting (0:12) — click to stop", "Recording meeting (0:12)")]
+    [InlineData("Unnamed recording waiting — click to name and store it", "Unnamed recording waiting")]
+    [InlineData("Transcribing standup (1:05)", "Transcribing standup (1:05)")]
+    public void The_menu_line_leaves_out_the_click_hint(string tooltip, string line) =>
+        Assert.Equal(line, TrayView.For(new Status("recording", tooltip, "0:12"), blinkOn: true).StatusLine);
+
+    [Theory]
     [InlineData(new string[0], ProgramRoute.Tray)]
     [InlineData(new[] { "tray" }, ProgramRoute.Tray)]
     [InlineData(new[] { "status" }, ProgramRoute.Cli)]

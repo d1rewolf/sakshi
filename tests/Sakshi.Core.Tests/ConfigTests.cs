@@ -19,6 +19,10 @@ public sealed class ConfigTests
         BashConfigImport.Import(text, HostOs.Linux, Home, exists ?? (_ => false), warnings is null ? null : warnings.Add);
 
     [Fact]
+    public void Every_default_frame_mode_has_a_glyph() =>
+        Assert.All(new SakshiConfig().FramesModes, m => Assert.NotEmpty(m.Glyph));
+
+    [Fact]
     public void Import_ShippedBashConfig()
     {
         var text = File.ReadAllText(Path.Combine(RepoRoot(), "tests", "fixtures", "bash", "config"));
