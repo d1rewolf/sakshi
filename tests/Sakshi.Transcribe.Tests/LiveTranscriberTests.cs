@@ -110,7 +110,7 @@ public sealed class LiveTranscriberTests
 
         Assert.Equal(3, run.Code);
         Assert.Equal("unreadable", run.Lines.Single().GetProperty("error").GetString());
-        Assert.Equal(6, run.Waits); // 30 s at one look every 5 s
+        Assert.Equal(10, run.Waits); // 30 s at one look every 3 s
     }
 
     [Fact]
@@ -162,6 +162,63 @@ public sealed class LiveTranscriberTests
         });
         Assert.Equal(3, run.Code);
         Assert.Equal("lost", run.Lines.Last().GetProperty("error").GetString());
+    }
+
+    /// <summary>Loud sound, with quiet stretches (from, to) in seconds.</summary>
+    private static byte[] Sound(double seconds, params (double From, double To)[] quiet)
+    {
+        var pcm = new byte[(int)(seconds * 16000) * 2];
+        for (var i = 0; i < pcm.Length / 2; i++)
+        {
+            var t = i / 16000.0;
+            short v = quiet.Any(q => t >= q.From && t < q.To) ? (short)20 : (short)8000;
+            BitConverter.GetBytes(v).CopyTo(pcm, i * 2);
+        }
+        return pcm;
+    }
+
+    [Fact]
+    public void A_piece_ends_in_the_pause_of_its_last_second()
+    {
+        var end = LiveTranscriber.QuietEnd(Sound(3, (2.4, 2.6)));
+        Assert.InRange(end / (double)BytesPerSecond, 2.4, 2.6);
+        Assert.Equal(0, end % 2);   // whole samples
+    }
+
+    [Fact]
+    public void A_piece_with_no_pause_near_its_end_is_used_whole()
+    {
+        Assert.Equal(3 * BytesPerSecond, LiveTranscriber.QuietEnd(Sound(3, (0.5, 0.8))));   // the pause is too early
+        Assert.Equal(3 * BytesPerSecond, LiveTranscriber.QuietEnd(Sound(3)));
+    }
+
+    [Fact]
+    public void A_short_piece_is_never_cut()
+    {
+        Assert.Equal(2 * BytesPerSecond, LiveTranscriber.QuietEnd(Sound(2, (1.5, 1.7))));
+    }
+
+    [Fact]
+    public async Task What_follows_the_pause_starts_the_next_piece()
+    {
+        var sound = Sound(6, (2.4, 2.6));
+        var written = 3.0;
+        var reads = new List<double>();
+        Task<byte[]?> Read(TimeSpan from, TimeSpan max, CancellationToken ct)
+        {
+            reads.Add(from.TotalSeconds);
+            var start = (int)(from.TotalSeconds * 16000) * 2;
+            var end = Math.Min((int)(written * 16000) * 2, sound.Length);
+            return Task.FromResult<byte[]?>(sound[start..Math.Max(start, end)]);
+        }
+        var whisper = new PieceWhisper();
+        var stop = new TaskCompletionSource();
+        Task Delay(TimeSpan d, CancellationToken ct) { written += 3; stop.TrySetResult(); return Task.CompletedTask; }
+        await new LiveTranscriber(Read, whisper, new StringWriter(), Delay, () => DateTimeOffset.Now).RunAsync(stop.Task, Ct);
+
+        Assert.InRange(whisper.Pieces[0], 2.4, 2.6);
+        Assert.InRange(reads[1], 2.4, 2.6);
+        Assert.InRange(whisper.Pieces[0] + whisper.Pieces[1], 5.99, 6.01);   // nothing lost, nothing twice
     }
 
     [Fact]

@@ -31,7 +31,7 @@ Its menu has:
 | --- | --- |
 | Status line | What Sakshi is doing now, for example how long it has been recording |
 | **Start recording** / **Stop recording** | Starts or stops a recording (the label follows what is happening) |
-| **Live transcript** | While recording: a window showing what is being said, about 10 seconds behind (see below) |
+| **Live transcript** | While recording: a window showing what is being said, a few seconds behind (see below) |
 | **Re-pick window** | Linux under Hyprland, while recording: choose the recorded window again without stopping |
 | **Open meetings folder** | Opens the folder your meetings are saved in |
 | **Open config** | Opens the settings file (see [Settings](#settings)) |
@@ -74,7 +74,7 @@ While recording, choose **Live transcript** in the tray menu, or set
 `liveTranscript` to `true` in the settings to have it open by itself at the
 start of every recording (it opens without taking the keyboard from your
 meeting). A window shows what
-is being said, each line with its time in the meeting, usually 6 to 11 seconds
+is being said, each line with its time in the meeting, usually 3 to 6 seconds
 behind the speaker. It follows the newest line; scroll up to read back, and it
 stops following until you scroll to the bottom again. **Copy all** puts
 everything so far on the clipboard.

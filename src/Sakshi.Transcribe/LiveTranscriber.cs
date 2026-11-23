@@ -5,7 +5,8 @@ namespace Sakshi.Transcribe;
 
 /// <summary>
 /// Transcribes a recording while OBS is still writing it, for the live transcript window. Every
-/// <see cref="Poll"/> it reads the audio written since it last looked and writes one JSON line per
+/// <see cref="Poll"/> it reads the audio written since it last looked (ending the piece at the quietest moment of
+/// its last second, so a word is not cut in two; the rest waits for the next piece) and writes one JSON line per
 /// spoken segment to <c>output</c>, with times from the start of the recording:
 /// <c>{"start":12.4,"end":15.1,"text":"…"}</c>. After each piece it writes <c>{"readTo":15.6}</c>, how far
 /// into the recording it has got, so a reader can show progress while it catches up.
@@ -26,7 +27,7 @@ public sealed class LiveTranscriber(
     Func<TimeSpan, CancellationToken, Task> delay,
     Func<DateTimeOffset> now)
 {
-    public static readonly TimeSpan Poll = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan Poll = TimeSpan.FromSeconds(3);
     public static readonly TimeSpan MaxChunk = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan UnreadableFor = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MinChunk = TimeSpan.FromSeconds(1);
@@ -64,12 +65,14 @@ public sealed class LiveTranscriber(
             var got = TimeSpan.FromSeconds((pcm?.Length ?? 0) / (double)BytesPerSecond);
             if (pcm is not null && (got >= MinChunk || stopping && got > TimeSpan.Zero))
             {
+                var backlog = got >= MaxChunk - MinChunk;
+                if (!stopping && !backlog) pcm = pcm[..QuietEnd(pcm)];
                 if (!Silent(pcm))
                     foreach (var s in await TranscribeAsync(pcm, ct))
                         await WriteAsync(new { start = Round(offset + s.Start), end = Round(offset + s.End), text = s.Text.Trim() });
-                offset += got;
+                offset += TimeSpan.FromSeconds(pcm.Length / (double)BytesPerSecond);
                 await WriteAsync(new { readTo = Round(offset) });
-                if (!stopping && got >= MaxChunk - MinChunk) continue; // a backlog: keep going without waiting
+                if (!stopping && backlog) continue; // a backlog: keep going without waiting
             }
 
             if (stopping) return 0;
@@ -82,6 +85,32 @@ public sealed class LiveTranscriber(
     {
         using var wav = new MemoryStream(Wav(pcm), writable: false);
         return (await whisper.TranscribeAsync(wav, ct)).Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
+    }
+
+    private const int Window = BytesPerSecond / 10;   // 100 ms
+
+    /// <summary>
+    /// Where to end a live piece: in the middle of the quietest 100 ms of its last second, when that is a real pause
+    /// (at most a quarter of the piece's loudest); otherwise, or for a piece of two seconds or less, at its end.
+    /// </summary>
+    public static int QuietEnd(byte[] pcm)
+    {
+        if (pcm.Length <= 2 * BytesPerSecond) return pcm.Length;
+        var loudest = Peak(pcm, 0, pcm.Length);
+        var (quietest, at) = (int.MaxValue, pcm.Length);
+        for (var start = pcm.Length - BytesPerSecond; start + Window <= pcm.Length; start += Window / 2)
+        {
+            var peak = Peak(pcm, start, Window);
+            if (peak < quietest) (quietest, at) = (peak, start + Window / 2);
+        }
+        return quietest * 4 <= loudest ? at & ~1 : pcm.Length;
+    }
+
+    private static int Peak(byte[] pcm, int from, int count)
+    {
+        var peak = 0;
+        for (var i = from; i + 1 < from + count; i += 2) peak = Math.Max(peak, Math.Abs((int)BitConverter.ToInt16(pcm, i)));
+        return peak;
     }
 
     internal static bool Silent(byte[] pcm)
