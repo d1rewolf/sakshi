@@ -42,7 +42,7 @@ public sealed class StopTests : IDisposable
             [new PromptRow("\U000F0193", "Save it", "Name it and transcribe"), new PromptRow("\U000F01B4", "Don't save", "Throw this recording away")],
             _f.Prompter.Rows[0]);
         Assert.Equal(
-            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", OperatingSystem.IsWindows() ? "Moves the video to the Recycle Bin" : "Moves the video to the trash")],
+            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", "Moves the video to " + Sakshi.Core.Recording.Recorder.TrashName)],
             _f.Prompter.Rows[1]);
     }
 
@@ -59,7 +59,7 @@ public sealed class StopTests : IDisposable
         Assert.Empty(_f.Files(_f.Rec));
         Assert.Equal(CapturePhase.Idle, _f.Capture.Phase);
         Assert.Empty(_f.Files(_f.Meetings));
-        Assert.Contains((Urgency.Low, "Recording discarded", "Moved to the trash: " + Path.GetFileName(video)), _f.Notifier.Sent);
+        Assert.Contains((Urgency.Low, "Recording discarded", "Moved to " + Sakshi.Core.Recording.Recorder.TrashName + ": " + Path.GetFileName(video)), _f.Notifier.Sent);
         Assert.Empty(_f.Jobs);
     }
 

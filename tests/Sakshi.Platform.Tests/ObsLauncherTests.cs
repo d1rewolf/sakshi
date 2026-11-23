@@ -72,7 +72,61 @@ public sealed class ObsLauncherTests : IDisposable
         var n = JsonNode.Parse(File.ReadAllText(ObsConfigFile))!;
         Assert.True((bool)n["server_enabled"]!);
         Assert.Equal(4455, (int)n["server_port"]!);
-        Assert.False((bool)n["auth_required"]!);
+        Assert.True((bool)n["auth_required"]!);
+        Assert.Equal(20, ((string)n["server_password"]!).Length);
+        Assert.Equal((string)n["server_password"]!, Launcher().Password());   // what Sakshi connects with
+    }
+
+    [Fact]
+    public async Task Turns_the_password_on_when_obs_asks_for_none()
+    {
+        WriteConfig("""{"server_enabled":true,"auth_required":false,"server_password":""}""");
+        _runner.OnPath["obs"] = "/usr/bin/obs";
+        await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
+        var n = JsonNode.Parse(File.ReadAllText(ObsConfigFile))!;
+        Assert.True((bool)n["auth_required"]!);
+        Assert.Equal(20, ((string)n["server_password"]!).Length);
+    }
+
+    [Fact]
+    public async Task Turning_the_password_on_keeps_one_already_there()
+    {
+        WriteConfig("""{"server_enabled":true,"auth_required":false,"server_password":"kept"}""");
+        _runner.OnPath["obs"] = "/usr/bin/obs";
+        await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
+        var n = JsonNode.Parse(File.ReadAllText(ObsConfigFile))!;
+        Assert.True((bool)n["auth_required"]!);
+        Assert.Equal("kept", (string)n["server_password"]!);
+    }
+
+    [Fact]
+    public async Task A_new_password_is_the_one_in_sakshis_config_when_set()
+    {
+        WriteConfig("""{"server_enabled":true,"auth_required":false}""");
+        _runner.OnPath["obs"] = "/usr/bin/obs";
+        await Launcher(cfg: new SakshiConfig { ObsWsPassword = "mine" }).EnsureRunningAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("mine", (string)JsonNode.Parse(File.ReadAllText(ObsConfigFile))!["server_password"]!);
+    }
+
+    [Fact]
+    public async Task Opting_out_leaves_obs_without_a_password()
+    {
+        const string text = """{"server_enabled":true,"auth_required":false}""";
+        WriteConfig(text);
+        _runner.OnPath["obs"] = "/usr/bin/obs";
+        await Launcher(cfg: new SakshiConfig { ObsWsRequirePassword = false }).EnsureRunningAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(text, File.ReadAllText(ObsConfigFile));
+    }
+
+    [Fact]
+    public async Task A_running_obs_without_a_password_is_left_alone_until_next_start()
+    {
+        const string text = """{"server_enabled":true,"auth_required":false}""";
+        WriteConfig(text);
+        _runner.Running.Add("obs");
+        await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(text, File.ReadAllText(ObsConfigFile));
+        Assert.Contains(_log.Lines, l => l.Contains("asks for no password"));
     }
 
     [Fact]
@@ -143,7 +197,8 @@ public sealed class ObsLauncherTests : IDisposable
         var attempts = 0;
         var l = Launcher((_, _, _) => { attempts++; return Task.FromResult(false); }, delay: (_, _) => { ticks++; return Task.CompletedTask; });
         var e = await Assert.ThrowsAsync<InvalidOperationException>(() => l.EnsureRunningAsync(TestContext.Current.CancellationToken));
-        Assert.Equal("OBS started but its WebSocket port 4455 never opened", e.Message);
+        Assert.Equal(ObsLauncher.NotAnswering(4455), e.Message);
+        Assert.Contains("answer a question in an OBS window", e.Message);
         Assert.Equal(60, attempts);
         Assert.Equal(60, ticks);
     }

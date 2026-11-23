@@ -142,6 +142,33 @@ public sealed class ObsWindowChooserTests : IDisposable
     }
 
     [Fact]
+    public async Task Mac_leaves_out_menu_bar_icons_and_the_systems_own_surfaces()
+    {
+        _prompter.Answer("smoke.txt");
+        await Select(ChooserOs.MacOS, [
+            Item("[Sakshi] Item-0", true, 1),
+            Item("[Control Center] Battery", true, 2),
+            Item("[Dock] Dock", true, 3),
+            Item("[Notification Center] Notification Center", true, 4),
+            Item("[OBS Studio] Item-0", true, 5),
+            Item("[Spotlight] Item-0", true, 6),
+            Item("[SystemUIServer] Siri", true, 7),
+            Item("[TextEdit] smoke.txt", true, 8),
+            Item("[Sakshi] Live transcript", true, 9)]);
+
+        Assert.Equal(["smoke.txt"], _prompter.Rows[0].Select(r => r.Label));
+    }
+
+    [Fact]
+    public async Task Windows_keeps_a_window_whose_title_looks_like_a_mac_menu_bar_item()
+    {
+        _prompter.Answer("Item-0");
+        await Select(ChooserOs.Windows, [Item("[notepad.exe]: Item-0", true, "Item-0:Notepad:notepad.exe")]);
+
+        Assert.Equal(["Item-0"], _prompter.Rows[0].Select(r => r.Label));
+    }
+
+    [Fact]
     public async Task Dismissed_returns_false_and_sets_no_window()
     {
         var ok = await Select(ChooserOs.MacOS, [Item("[Safari] News", true, 4)]);

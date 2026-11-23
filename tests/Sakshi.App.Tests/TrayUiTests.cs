@@ -18,6 +18,10 @@ public sealed class TrayUiTests : IDisposable
         [TrayIconState.Idle, TrayIconState.Recording, TrayIconState.RecordingDim, TrayIconState.Busy, TrayIconState.Transcribing];
 
     [Fact]
+    public void The_tray_icon_has_a_tooltip_before_it_is_shown() =>
+        Assert.Equal("Sakshi", TrayApp.NewIcon(new Avalonia.Controls.NativeMenu()).ToolTipText);
+
+    [Fact]
     public void The_live_transcript_setting_is_off_unless_chosen() =>
         Assert.False(new Sakshi.Core.Config.SakshiConfig().LiveTranscript);
 

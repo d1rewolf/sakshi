@@ -258,7 +258,7 @@ public sealed class Recorder(
         pick = await ChooseAsync("Delete this recording?",
         [
             new PromptRow("\U000F0193", "Keep it", "Go back to naming it"),
-            new PromptRow("\U000F01B4", "Yes, delete it", OperatingSystem.IsWindows() ? "Moves the video to the Recycle Bin" : "Moves the video to the trash"),
+            new PromptRow("\U000F01B4", "Yes, delete it", $"Moves the video to {TrashName}"),
         ], timeout, ct);
         if (pick == "Yes, delete it")
         {
@@ -316,11 +316,11 @@ public sealed class Recorder(
         catch (Exception e) when (e is not OperationCanceledException)
         {
             log.Info($"trash failed: {e.Message}");
-            return Die($"Could not move the recording to the trash. It is still at {video} — click stop again to retry.");
+            return Die($"Could not move the recording to {TrashName}. It is still at {video} — click stop again to retry.");
         }
         log.Info($"discarded: {video}");
         ClearCapture();
-        notifier.Notify("Recording discarded", $"Moved to the trash: {Path.GetFileName(video)}", Urgency.Low);
+        notifier.Notify("Recording discarded", $"Moved to {TrashName}: {Path.GetFileName(video)}", Urgency.Low);
         return 0;
     }
 
@@ -378,4 +378,8 @@ public sealed class Recorder(
         notifier.Notify("Sakshi", message, Urgency.Critical);
         return 1;
     }
+
+    /// <summary>What the system calls the place deleted files go.</summary>
+    public static string TrashName =>
+        OperatingSystem.IsWindows() ? "the Recycle Bin" : OperatingSystem.IsMacOS() ? "the Trash" : "the trash";
 }

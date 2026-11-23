@@ -26,6 +26,10 @@ internal static class ObsWebSocketConfig
         }
     }
 
+    /// <summary>obs-websocket asks for a password unless the file says otherwise.</summary>
+    public static bool AuthRequired(JsonObject root) =>
+        root["auth_required"] is not JsonValue v || !v.TryGetValue<bool>(out var on) || on;
+
     public static bool ServerEnabled(JsonObject root) =>
         root["server_enabled"] is JsonValue v && v.TryGetValue<bool>(out var on) && on;
 }

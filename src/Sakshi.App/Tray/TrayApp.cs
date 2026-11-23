@@ -59,16 +59,16 @@ public sealed class TrayApp : PromptApplication
     {
         _statusLine = new NativeMenuItem(TrayView.Name) { IsEnabled = false };
         _toggle = new NativeMenuItem("Start recording");
-        _toggle.Click += (_, _) => host.Toggle();
+        _toggle.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); host.Toggle(); };
         _repick = RepickItem(host);
         _liveItem = new NativeMenuItem("Live transcript") { IsEnabled = false };
-        _liveItem.Click += (_, _) => _ = ShowLiveTranscriptAsync(host, activate: true);
+        _liveItem.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); _ = ShowLiveTranscriptAsync(host, activate: true); };
         var meetings = new NativeMenuItem("Open meetings folder");
         meetings.Click += (_, _) => host.OpenMeetings();
         var config = new NativeMenuItem("Open config");
         config.Click += (_, _) => host.OpenConfig();
         var setup = new NativeMenuItem("Setup…");
-        setup.Click += (_, _) => _ = ShowSetupAsync(host);
+        setup.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); _ = ShowSetupAsync(host); };
         var startAtLogin = StartAtLoginItem(host);
         if (startAtLogin is not null) _ = RefreshStartAtLoginAfter(upkeep, host, startAtLogin);
         var quit = new NativeMenuItem("Quit");
@@ -87,7 +87,7 @@ public sealed class TrayApp : PromptApplication
         menu.Add(new NativeMenuItemSeparator());
         menu.Add(quit);
 
-        _icon = new TrayIcon { Menu = menu, IsVisible = true };
+        _icon = NewIcon(menu);
         if (ClickToggles) _icon.Clicked += (_, _) => host.Toggle();
         TrayIcon.SetIcons(this, new TrayIcons { _icon });
 
@@ -100,6 +100,13 @@ public sealed class TrayApp : PromptApplication
         };
         _timer.Start();
     }
+
+    /// <summary>
+    /// The tray icon, with a tooltip from the start: on macOS the icon is created as soon as it is attached, and a
+    /// null tooltip there throws, which stopped the tray from starting at all.
+    /// </summary>
+    internal static TrayIcon NewIcon(NativeMenu menu) =>
+        new() { Menu = menu, ToolTipText = TrayView.Name, IsVisible = true };
 
     /// <summary>
     /// A click on the icon starts or stops a recording only on Linux, where bars such as Omarchy's send a left click
@@ -235,7 +242,7 @@ public sealed class TrayApp : PromptApplication
     {
         if (host.Services.CaptureRecovery is null) return null;
         var item = new NativeMenuItem("Re-pick window") { IsEnabled = false };
-        item.Click += (_, _) => host.Repick();
+        item.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); host.Repick(); };
         return item;
     }
 
@@ -283,7 +290,9 @@ public sealed class TrayApp : PromptApplication
             _icon!.Icon = icon;
             _shownIcon = view.Icon;
         }
-        if (_shownTip != view.Tooltip) _icon!.ToolTipText = _shownTip = view.Tooltip;
+        // The hover text says what a click does; only where a click toggles may it say "click to stop".
+        var tip = ClickToggles ? view.Tooltip : view.StatusLine;
+        if (_shownTip != tip) _icon!.ToolTipText = _shownTip = tip;
         if (_shownStatus != view.StatusLine) _statusLine!.Header = _shownStatus = view.StatusLine;
         if (_shownLabel != view.ToggleLabel) _toggle!.Header = _shownLabel = view.ToggleLabel;
         if (_repick is not null && _repick.IsEnabled != view.Recording) _repick.IsEnabled = view.Recording;

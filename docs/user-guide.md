@@ -215,8 +215,19 @@ changing it. The settings people change most:
 | `liveTranscript` | Open the live transcript by itself when a recording starts | `false` |
 | `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 
+| `obsWsRequirePassword` | Make OBS's remote control ask for a password (see below); `false` leaves OBS's own setting alone | `true` |
+
 The other settings (OBS connection details, the share picker on Linux) rarely
 need changing.
+
+Sakshi controls OBS through OBS's remote control (its WebSocket server). OBS
+cannot limit that to your own computer: anyone on the same network can reach
+it. So before it starts OBS, Sakshi makes sure the remote control asks for a
+password, and gives it a random one if it has none. Sakshi reads the password
+from OBS's settings, so there is nothing to type. If another tool of yours uses
+OBS's remote control without a password, either give that tool the password
+(OBS: Tools → WebSocket Server Settings → Show Connect Info) or set
+`obsWsRequirePassword` to `false`.
 
 ### Sending finished meetings somewhere (hand-off)
 

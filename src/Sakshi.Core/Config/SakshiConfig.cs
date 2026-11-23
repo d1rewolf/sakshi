@@ -13,6 +13,11 @@ public sealed record SakshiConfig
     public string ObsWsHost { get; init; } = "127.0.0.1";
     public int ObsWsPort { get; init; } = 4455;
     public string ObsWsPassword { get; init; } = "";
+    /// <summary>
+    /// OBS's remote control listens on every network interface, so it must ask for a password. When true, Sakshi turns
+    /// the password on (with a new random one) if it finds it off, before it starts OBS. False leaves OBS's setting alone.
+    /// </summary>
+    public bool ObsWsRequirePassword { get; init; } = true;
     public string TranscribeArgs { get; init; } = "-F changes -D 8";
     public string Model { get; init; } = "";
     public IReadOnlyList<string> HandOffPath { get; init; } = [];

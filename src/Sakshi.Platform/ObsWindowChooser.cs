@@ -33,6 +33,19 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
 
     private static readonly HashSet<string> OwnApps = new(["sakshi", "sakshi.exe", "sakshiw.exe"], StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// macOS lists the system's own surfaces as windows too (the Dock, Control Center's menu-bar modules, Spotlight):
+    /// never a meeting, and they push the real windows down the list.
+    /// </summary>
+    private static readonly HashSet<string> MacSystemApps = new(
+    [
+        "Control Center", "Dock", "Notification Center", "Spotlight", "SystemUIServer", "Window Server", "WindowManager",
+        "Wallpaper", "TextInputMenuAgent", "loginwindow", "universalAccessAuthWarn", "CursorUIViewService",
+    ], StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A menu-bar icon (any app's): macOS names its window "Item-0", "Item-1"...</summary>
+    private static readonly Regex MenuBarItem = new(@"^Item-\d+$");
+
     private static readonly Regex OwnerAndTitle = new(@"^\[(?<app>[^\]]+)\]:? ?(?<title>.*)$");
 
     public string InputKind => os == ChooserOs.MacOS ? "screen_capture" : "window_capture";
@@ -48,8 +61,7 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
         var reply = await obs.RequestAsync("GetInputPropertiesListPropertyItems",
             new { inputName = source, propertyName = "window" }, ct);
 
-        // Sakshi's own windows (Setup, the live transcript) are never the meeting.
-        var windows = Candidates(reply).Where(w => !OwnApps.Contains(w.App)).ToList();
+        var windows = Candidates(reply).Where(Offered).ToList();
         if (windows.Count == 0) throw new InvalidOperationException(NoWindowsMessage);
 
         var ordered = WindowPriority.Order(windows, w => w.Name, config.PickerPriorityRegex);
@@ -65,6 +77,11 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
         await SetSettingsAsync(obs, source, labelled.First(w => w.Label == chosen).Window.Value, ct);
         return true;
     }
+
+    /// <summary>Sakshi's own windows (Setup, the live transcript) are never the meeting; nor, on macOS, is the system's UI.</summary>
+    private bool Offered(Candidate w) =>
+        !OwnApps.Contains(w.App)
+        && !(os == ChooserOs.MacOS && (MacSystemApps.Contains(w.App) || MenuBarItem.IsMatch(w.Title)));
 
     private string NoWindowsMessage => os == ChooserOs.MacOS
         ? "OBS can't see any windows. Give OBS screen recording permission (System Settings → Privacy & Security → Screen Recording on macOS 13 and 14, Screen & System Audio Recording on macOS 15), restart OBS, and try again."
