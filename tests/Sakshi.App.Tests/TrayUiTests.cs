@@ -18,6 +18,20 @@ public sealed class TrayUiTests : IDisposable
         [TrayIconState.Idle, TrayIconState.Recording, TrayIconState.RecordingDim, TrayIconState.Busy, TrayIconState.Transcribing];
 
     [Fact]
+    public void The_live_transcript_setting_is_off_unless_chosen() =>
+        Assert.False(new Sakshi.Core.Config.SakshiConfig().LiveTranscript);
+
+    [Theory]
+    [InlineData(true, false, true, true)]    // a recording starts: open
+    [InlineData(false, false, true, false)]  // setting off
+    [InlineData(true, null, true, false)]    // already recording when the tray started
+    [InlineData(true, true, true, false)]    // still recording: opened once, not again after closing
+    [InlineData(true, true, false, false)]   // the recording stops
+    public void The_live_transcript_opens_by_itself_only_when_a_recording_starts(
+        bool setting, bool? wasRecording, bool recording, bool opens) =>
+        Assert.Equal(opens, TrayApp.OpensLiveTranscript(setting, wasRecording, recording));
+
+    [Fact]
     public void Icon_pixels_differ_per_state_and_are_deterministic()
     {
         var seen = new List<byte[]>();

@@ -70,7 +70,10 @@ If you do not answer within 10 minutes, it keeps recording.
 
 ## Watching the transcript live
 
-While recording, choose **Live transcript** in the tray menu. A window shows what
+While recording, choose **Live transcript** in the tray menu, or set
+`liveTranscript` to `true` in the settings to have it open by itself at the
+start of every recording (it opens without taking the keyboard from your
+meeting). A window shows what
 is being said, each line with its time in the meeting, usually 6 to 11 seconds
 behind the speaker. It follows the newest line; scroll up to read back, and it
 stops following until you scroll to the bottom again. **Copy all** puts
@@ -209,6 +212,7 @@ changing it. The settings people change most:
 | `framesPrompt` | Ask which frames to keep; `false` always uses `transcribeArgs` | `true` |
 | `transcribeArgs` | The frames setting used when the question is off or not answered | `-F changes -D 8` |
 | `model` | Path to a different Whisper speech model file | downloaded `ggml-base.en.bin` |
+| `liveTranscript` | Open the live transcript by itself when a recording starts | `false` |
 | `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 
 The other settings (OBS connection details, the share picker on Linux) rarely

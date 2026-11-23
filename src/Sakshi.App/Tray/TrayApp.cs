@@ -33,6 +33,7 @@ public sealed class TrayApp : PromptApplication
     private SetupWindow? _setup;
     private LiveTranscriptWindow? _liveWindow;
     private WindowsHotkey? _hotkey;
+    private bool? _wasRecording;
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -61,7 +62,7 @@ public sealed class TrayApp : PromptApplication
         _toggle.Click += (_, _) => host.Toggle();
         _repick = RepickItem(host);
         _liveItem = new NativeMenuItem("Live transcript") { IsEnabled = false };
-        _liveItem.Click += (_, _) => _ = ShowLiveTranscriptAsync(host);
+        _liveItem.Click += (_, _) => _ = ShowLiveTranscriptAsync(host, activate: true);
         var meetings = new NativeMenuItem("Open meetings folder");
         meetings.Click += (_, _) => host.OpenMeetings();
         var config = new NativeMenuItem("Open config");
@@ -140,6 +141,13 @@ public sealed class TrayApp : PromptApplication
         $"{key.Text} is already used by another program, so it won't start or stop recording. " +
         "Choose another shortcut in config.json (\"shortcut\"), then restart Sakshi.";
 
+    /// <summary>
+    /// With the liveTranscript setting on, a recording that starts while the tray runs opens the live transcript. One
+    /// already running when the tray starts does not: that is a restart, not a new meeting.
+    /// </summary>
+    internal static bool OpensLiveTranscript(bool setting, bool? wasRecording, bool recording) =>
+        setting && wasRecording == false && recording;
+
     /// <summary>Opens the setup window when the start check asks for it (something missing, or an installed copy's first start).</summary>
     private async Task ShowSetupIfWantedAsync(TrayHost host)
     {
@@ -168,10 +176,12 @@ public sealed class TrayApp : PromptApplication
     }
 
     /// <summary>
-    /// The "Live transcript" item: starts (or finds) the recording's live transcript off the UI thread, then opens its
-    /// window, or brings an open one forward. What stops it is told in a notification.
+    /// The "Live transcript" item, or a recording's start with the liveTranscript setting on: starts (or finds) the
+    /// recording's live transcript off the UI thread, then opens its window, or brings an open one forward. Opened by
+    /// itself (<paramref name="activate"/> false), it leaves the keyboard where it is, in the meeting. What stops it
+    /// is told in a notification.
     /// </summary>
-    private async Task ShowLiveTranscriptAsync(TrayHost host)
+    private async Task ShowLiveTranscriptAsync(TrayHost host, bool activate)
     {
         try
         {
@@ -182,16 +192,16 @@ public sealed class TrayApp : PromptApplication
                 {
                     if (open.Transcript == live)
                     {
-                        open.Activate();
+                        if (activate) open.Activate();
                         return;
                     }
                     open.Close(); // an earlier recording's: this recording gets its own window
                 }
-                var window = new LiveTranscriptWindow(live, host.Log);
+                var window = new LiveTranscriptWindow(live, host.Log) { ShowActivated = activate };
                 window.Closed += (_, _) => { if (_liveWindow == window) _liveWindow = null; };
                 _liveWindow = window;
                 window.Show();
-                window.Activate();
+                if (activate) window.Activate();
             });
         }
         catch (Exception e)
@@ -278,6 +288,9 @@ public sealed class TrayApp : PromptApplication
         if (_shownLabel != view.ToggleLabel) _toggle!.Header = _shownLabel = view.ToggleLabel;
         if (_repick is not null && _repick.IsEnabled != view.Recording) _repick.IsEnabled = view.Recording;
         if (_liveItem!.IsEnabled != view.Recording) _liveItem.IsEnabled = view.Recording;
+        if (OpensLiveTranscript(host.Services.Config.LiveTranscript, _wasRecording, view.Recording))
+            _ = ShowLiveTranscriptAsync(host, activate: false);
+        _wasRecording = view.Recording;
     }
 
     /// <summary>Ask the running tray to quit (Ctrl-C, or the menu). Safe from any thread, idempotent.</summary>

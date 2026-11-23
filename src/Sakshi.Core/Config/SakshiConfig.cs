@@ -38,6 +38,8 @@ public sealed record SakshiConfig
     public string PickerDefaultPage { get; init; } = "windows";
     /// <summary>The key that starts or stops a recording, held by the tray on Windows; blank for none.</summary>
     public string Shortcut { get; init; } = "Ctrl+Alt+R";
+    /// <summary>Open the live transcript window by itself when a recording starts.</summary>
+    public bool LiveTranscript { get; init; }
 
     [JsonIgnore]
     public string EffectiveArchiveDir =>
