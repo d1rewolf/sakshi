@@ -174,17 +174,23 @@ not recording.
 
 ## Keyboard shortcut
 
-Starting and stopping from a key is quicker than the menu. Bind this command to
-a key in your desktop's keyboard settings:
+Starting and stopping from a key is quicker than the menu.
+
+On Windows, press **Ctrl+Alt+R** while Sakshi is running. It starts a
+recording, or stops the one in progress. To use another key, set `shortcut` in
+the settings (below); if another program already uses the key, Sakshi says so
+in a notification.
+
+On Linux and macOS, bind this command to a key in your desktop's keyboard
+settings:
 
 ```sh
 sakshi toggle
 ```
 
-It starts a recording, or stops the one in progress. On Omarchy, add a binding
-in `~/.config/hypr/bindings.lua`. On macOS and Windows, use a shortcut tool you
-already have (for example macOS Shortcuts or Windows PowerToys); give the full
-path to `sakshi` on macOS. The other commands that talk to the running tray are
+On Omarchy, add a binding in `~/.config/hypr/bindings.lua`. On macOS, use a
+shortcut tool you already have (for example macOS Shortcuts) and give the full
+path to `sakshi`. The other commands that talk to the running tray are
 `sakshi start`, `sakshi stop` and, on Linux under Hyprland, `sakshi repick`.
 
 ## Settings
@@ -203,6 +209,7 @@ changing it. The settings people change most:
 | `framesPrompt` | Ask which frames to keep; `false` always uses `transcribeArgs` | `true` |
 | `transcribeArgs` | The frames setting used when the question is off or not answered | `-F changes -D 8` |
 | `model` | Path to a different Whisper speech model file | downloaded `ggml-base.en.bin` |
+| `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 
 The other settings (OBS connection details, the share picker on Linux) rarely
 need changing.

@@ -117,6 +117,20 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void Load_BlankShortcut_MeansNone()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sakshi-cfg-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "config.json");
+            File.WriteAllText(path, "{\"shortcut\": \"\"}");
+            Assert.Equal("", ConfigStore.Load(path, HostOs.Windows, Home).Shortcut);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public void Load_MalformedJson_ThrowsInvalidDataExceptionNamingFile()
     {
         var dir = Path.Combine(Path.GetTempPath(), "sakshi-cfg-" + Guid.NewGuid().ToString("N"));

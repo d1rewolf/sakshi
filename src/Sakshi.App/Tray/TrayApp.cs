@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -31,6 +32,7 @@ public sealed class TrayApp : PromptApplication
     private IDisposable? _ctrlC, _sigterm;
     private SetupWindow? _setup;
     private LiveTranscriptWindow? _liveWindow;
+    private WindowsHotkey? _hotkey;
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -46,6 +48,7 @@ public sealed class TrayApp : PromptApplication
             if (!OperatingSystem.IsWindows())
                 _sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; RequestQuit(); });
             Build(host, upkeep);
+            if (OperatingSystem.IsWindows()) HoldShortcut(host);
             _ = ShowSetupIfWantedAsync(host);
         }
         base.OnFrameworkInitializationCompleted();
@@ -102,6 +105,40 @@ public sealed class TrayApp : PromptApplication
     /// to the app. On Windows a left click is easy to make by accident, and on macOS a click opens the menu.
     /// </summary>
     internal static bool ClickToggles => OperatingSystem.IsLinux();
+
+    /// <summary>
+    /// Takes the shortcut from the config (Windows only: elsewhere the desktop binds keys to <c>sakshi toggle</c>).
+    /// A shortcut that cannot be used is told in a notification; the tray runs on without it.
+    /// </summary>
+    private void HoldShortcut(TrayHost host)
+    {
+        var setting = host.Services.Config.Shortcut;
+        if (Hotkey.IsOff(setting)) return;
+        if (Hotkey.Parse(setting) is not { } key)
+        {
+            host.Log($"shortcut: cannot read \"{setting}\"");
+            host.Services.Notifier.Notify("Sakshi", ShortcutUnreadable(setting), Core.Ports.Urgency.Normal);
+            return;
+        }
+        try
+        {
+            _hotkey = WindowsHotkey.Register(key, host.Toggle);
+            host.Log($"shortcut: {key.Text} starts or stops a recording");
+        }
+        catch (Win32Exception e)
+        {
+            host.Log($"shortcut: could not register {key.Text}: {e.Message}");
+            host.Services.Notifier.Notify("Sakshi", ShortcutTaken(key), Core.Ports.Urgency.Normal);
+        }
+    }
+
+    internal static string ShortcutUnreadable(string setting) =>
+        $"The shortcut \"{setting}\" in config.json is not one Sakshi understands, so there is no shortcut for now. " +
+        "Use a form like Ctrl+Alt+R (Ctrl, Alt or Win, plus a letter, a digit or F1–F24), then restart Sakshi.";
+
+    internal static string ShortcutTaken(Hotkey key) =>
+        $"{key.Text} is already used by another program, so it won't start or stop recording. " +
+        "Choose another shortcut in config.json (\"shortcut\"), then restart Sakshi.";
 
     /// <summary>Opens the setup window when the start check asks for it (something missing, or an installed copy's first start).</summary>
     private async Task ShowSetupIfWantedAsync(TrayHost host)
@@ -253,6 +290,7 @@ public sealed class TrayApp : PromptApplication
         _ctrlC?.Dispose();
         _sigterm?.Dispose();
         _timer?.Stop();
+        _hotkey?.Dispose();
         if (_icon is not null) _icon.IsVisible = false;
         var host = Host;
         _ = Task.Run(async () =>

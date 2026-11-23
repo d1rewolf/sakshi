@@ -36,6 +36,8 @@ public sealed record SakshiConfig
     public string PickerRealBin { get; init; } = "hyprland-preview-share-picker";
     public string PickerPriorityRegex { get; init; } = @"zoom|teams|meet\.google|webex|gotomeeting";
     public string PickerDefaultPage { get; init; } = "windows";
+    /// <summary>The key that starts or stops a recording, held by the tray on Windows; blank for none.</summary>
+    public string Shortcut { get; init; } = "Ctrl+Alt+R";
 
     [JsonIgnore]
     public string EffectiveArchiveDir =>
