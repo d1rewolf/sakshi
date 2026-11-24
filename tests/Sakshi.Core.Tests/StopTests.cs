@@ -135,7 +135,7 @@ public sealed class StopTests : IDisposable
         Assert.Equal(CapturePhase.Naming, _f.Capture.Phase);
         Assert.Equal(video, _f.Capture.Video);
         Assert.Contains((Urgency.Critical, "Sakshi",
-            $"Could not move the recording to the trash. It is still at {video} — click stop again to retry."), _f.Notifier.Sent);
+            $"Could not move the recording to {Sakshi.Core.Recording.Recorder.TrashName}. It is still at {video} — click stop again to retry."), _f.Notifier.Sent);
     }
 
     // ---- stop: resume path, day and default name
