@@ -22,7 +22,7 @@ public sealed class TrayApp : PromptApplication
 
     private DispatcherTimer? _timer;
     private TrayIcon? _icon;
-    private NativeMenuItem? _statusLine, _toggle, _repick, _liveItem;
+    private NativeMenuItem? _statusLine, _toggle, _soundOnly, _repick, _liveItem;
     private IClassicDesktopStyleApplicationLifetime? _lifetime;
     private int _ticks;
     private int _quitting;
@@ -60,7 +60,9 @@ public sealed class TrayApp : PromptApplication
     {
         _statusLine = new NativeMenuItem(TrayView.Name) { IsEnabled = false };
         _toggle = new NativeMenuItem("Start recording");
-        _toggle.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); host.Toggle(); };
+        _toggle.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); host.Toggle("--video"); };
+        _soundOnly = new NativeMenuItem("Record audio only");
+        _soundOnly.Click += (_, _) => host.Toggle("--audio");
         _repick = RepickItem(host);
         _liveItem = new NativeMenuItem("Live transcript") { IsEnabled = false };
         _liveItem.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); _ = ShowLiveTranscriptAsync(host, activate: true); };
@@ -80,6 +82,7 @@ public sealed class TrayApp : PromptApplication
         var menu = new NativeMenu();
         menu.Add(_statusLine);
         menu.Add(_toggle);
+        menu.Add(_soundOnly);
         menu.Add(_liveItem);
         if (_repick is not null) menu.Add(_repick);
         menu.Add(new NativeMenuItemSeparator());
@@ -316,6 +319,7 @@ public sealed class TrayApp : PromptApplication
         if (_shownLabel != view.ToggleLabel) _toggle!.Header = _shownLabel = view.ToggleLabel;
         if (_repick is not null && _repick.IsEnabled != view.Recording) _repick.IsEnabled = view.Recording;
         if (_liveItem!.IsEnabled != view.Recording) _liveItem.IsEnabled = view.Recording;
+        if (_soundOnly!.IsEnabled != view.CanStart) _soundOnly.IsEnabled = view.CanStart;
         if (OpensLiveTranscript(host.Services.Config.LiveTranscript, _wasRecording, view.Recording))
             _ = ShowLiveTranscriptAsync(host, activate: false);
         _wasRecording = view.Recording;

@@ -39,7 +39,8 @@ public sealed class Recorder(
     TranscriptionQueue queue,
     Func<CancellationToken, Task<IObs?>> connectObs,
     Func<TimeSpan, CancellationToken, Task>? delay = null,
-    Func<CancellationToken, Task>? afterObsStopped = null)
+    Func<CancellationToken, Task>? afterObsStopped = null,
+    Func<string, CancellationToken, Task<string>>? keepSoundOnly = null)
 {
     private static readonly TimeSpan RecentWindow = TimeSpan.FromMinutes(10);
 
@@ -218,7 +219,8 @@ public sealed class Recorder(
 
             // The recording exists. Point at it before anything else can go wrong.
             // A fresh capture: a Name, Frames or hand-off left by a crashed earlier stop must not carry over.
-            store.Update(s => s with { Capture = new Capture(CapturePhase.Naming, Started: s.Capture.Started, Video: video, Stopped: stopped) });
+            store.Update(s => s with { Capture = new Capture(CapturePhase.Naming, Started: s.Capture.Started, Video: video, Stopped: stopped,
+                AudioOnly: s.Capture.AudioOnly) });
             log.Info($"recording stopped: {video}");
             await AfterObsStoppedAsync();
             return new(video, stopped, null);
@@ -271,7 +273,7 @@ public sealed class Recorder(
         pick = await ChooseAsync("Delete this recording?",
         [
             new PromptRow("\U000F0193", "Keep it", "Go back to naming it"),
-            new PromptRow("\U000F01B4", "Yes, delete it", $"Moves the video to {TrashName}"),
+            new PromptRow("\U000F01B4", "Yes, delete it", $"Moves the recording to {TrashName}"),
         ], timeout, ct);
         if (pick == "Yes, delete it")
         {
@@ -349,7 +351,9 @@ public sealed class Recorder(
         if (name.Length == 0) name = await PromptNameAsync(defaultName, ct);
         if (name.Length == 0) name = defaultName;
 
-        var frames = store.Load().Capture.Frames ?? await PromptFramesAsync(ct);
+        var soundOnly = store.Load().Capture.AudioOnly;
+        // Sound only: no pictures to keep, so no question about them.
+        var frames = store.Load().Capture.Frames ?? (soundOnly ? new FrameChoice("-F none", null) : await PromptFramesAsync(ct));
         store.Update(s => s with { Capture = s.Capture with { Name = name, Frames = frames } });
 
         if (!File.Exists(video))
@@ -361,6 +365,21 @@ public sealed class Recorder(
         // WaitForSettled returns quietly when cancelled. A Quit must not move a file OBS may
         // still be finalising: stay at Naming, so the next stop resumes.
         ct.ThrowIfCancellationRequested();
+
+        if (soundOnly && keepSoundOnly is not null && !video.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase))
+        {
+            // Only the sound is kept: OBS's picture was black. A failure keeps the whole file; nothing is lost.
+            try
+            {
+                var sound = await keepSoundOnly(video, ct);
+                store.Update(s => s with { Capture = s.Capture with { Video = sound } });
+                video = sound;
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                log.Info($"could not keep only the sound of {video}: {e.Message}; storing the whole recording");
+            }
+        }
 
         // On any failure the file stays where it is and the state keeps pointing at it; the
         // next stop retries without asking again.

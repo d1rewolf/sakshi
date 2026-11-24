@@ -13,7 +13,8 @@ public sealed record Capture(
     DateTimeOffset? Stopped = null,
     string? Name = null,
     FrameChoice? Frames = null,
-    string? SourceSize = null)
+    string? SourceSize = null,
+    bool AudioOnly = false)
 {
     public static Capture Idle { get; } = new(CapturePhase.Idle);
 }

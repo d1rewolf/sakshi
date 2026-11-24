@@ -96,6 +96,24 @@ public class TranscribeCommandTests : IDisposable
         Assert.DoesNotContain("00:59:59", File.ReadAllText(Path.Combine(outDir, "meeting.md")));
     }
 
+    [Fact]
+    public async Task Keeping_only_the_sound_leaves_an_m4a_with_the_audio_and_no_picture()
+    {
+        var clip = await MakeClipAsync();
+        var m4a = await Ffmpeg.KeepAudioOnlyAsync(clip, TestContext.Current.CancellationToken);
+
+        Assert.Equal(Path.ChangeExtension(clip, ".m4a"), m4a);
+        Assert.False(File.Exists(clip));
+        var probe = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ffprobe")
+        {
+            ArgumentList = { "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", m4a },
+            RedirectStandardOutput = true,
+        })!;
+        var streams = (await probe.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken)).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        await probe.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(["audio"], streams);
+    }
+
     private async Task<string> MakeClipAsync()
     {
         var clip = Path.Combine(_dir, "clip.mp4");

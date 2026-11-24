@@ -113,7 +113,8 @@ public sealed record TrayServices(
                 if (!obsRunning()) return;
                 await using var obs = await connect(ct).ConfigureAwait(false);
                 await obsSettings.LeaveAsync(obs, ct).ConfigureAwait(false);
-            });
+            },
+            keepSoundOnly: Ffmpeg.KeepAudioOnlyAsync);
 
         return new TrayServices(paths, os, home, config, store, recorder, starter, queue, prompter, notifier, log, clock, runner)
         {

@@ -22,7 +22,8 @@ public static class MacMeetingAudio
     /// capture. The window source is muted only once that audio is confirmed to be recorded, so the meeting is
     /// never silent; at worst (a failure on the way) it is recorded twice.
     /// </summary>
-    public static async Task EnsureAsync(ObsClient obs, string scene, string source, ILog log, CancellationToken ct)
+    /// <param name="source">The window source to mute once the desktop sound records; null in a sound-only scene.</param>
+    public static async Task EnsureAsync(ObsClient obs, string scene, string? source, ILog log, CancellationToken ct)
     {
         try
         {
@@ -33,6 +34,7 @@ public static class MacMeetingAudio
             log.Info($"Could not set up desktop audio in scene '{scene}' ({e.Message}); recording with the window's own audio only");
             return;
         }
+        if (source is null) return;
         try
         {
             await obs.RequestAsync("SetInputMute", new { inputName = source, inputMuted = true }, ct);

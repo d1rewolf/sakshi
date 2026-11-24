@@ -31,6 +31,7 @@ Its menu has:
 | --- | --- |
 | Status line | What Sakshi is doing now, for example how long it has been recording |
 | **Start recording** / **Stop recording** | Starts or stops a recording (the label follows what is happening) |
+| **Record audio only** | Records the meeting's sound without a window: no picker, no pictures (see [Recording only the sound](#recording-only-the-sound)) |
 | **Live transcript** | While recording: a window showing what is being said, a few seconds behind (see below) |
 | **Re-pick window** | Linux under Hyprland, while recording: choose the recorded window again without stopping |
 | **Open meetings folder** | Opens the folder your meetings are saved in |
@@ -68,6 +69,23 @@ If you do not answer within 10 minutes, it keeps recording.
   stay private.
 - On macOS, OBS needs the Screen Recording and Microphone permissions. The
   setup window has a button that opens the right settings page.
+
+## Recording only the sound
+
+When you do not want the screen recorded (a phone call, a meeting with no
+slides, or a window you would rather keep private), choose **Record audio
+only**. Sakshi records your microphone and your computer's sound, with no
+window and no picker. Stop it as usual.
+
+The meeting folder then holds `NAME.m4a` instead of a video, and `meeting.md`
+is the transcript without pictures; Sakshi does not ask which frames to keep.
+The live transcript works the same way.
+
+To make the keyboard shortcut, a click on the bar icon and `sakshi toggle`
+record sound only, set `recordAudioOnly` to `true` in the settings. **Start
+recording** in the menu still records the window. From the command line,
+`sakshi start --audio` or `sakshi start --video` chooses for one recording,
+whatever the setting.
 
 ## Watching the transcript live
 
@@ -196,6 +214,9 @@ On Omarchy, add a binding in `~/.config/hypr/bindings.lua`. On macOS, use a
 shortcut tool you already have (for example macOS Shortcuts) and give the full
 path to `sakshi`. The other commands that talk to the running tray are
 `sakshi start`, `sakshi stop` and, on Linux under Hyprland, `sakshi repick`.
+`sakshi start` and `sakshi toggle` take `--audio` (sound only) or `--video`
+(the window and its sound); without either, the `recordAudioOnly` setting
+decides.
 
 ## Settings
 
@@ -214,6 +235,7 @@ changing it. The settings people change most:
 | `transcribeArgs` | The frames setting used when the question is off or not answered | `-F changes -D 8` |
 | `model` | Path to a different Whisper speech model file | downloaded `ggml-base.en.bin` |
 | `liveTranscript` | Open the live transcript by itself when a recording starts | `false` |
+| `recordAudioOnly` | The shortcut, a click on the bar icon and `sakshi toggle` record sound only (no window); the menu has an item for each kind either way | `false` |
 | `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 
 | `recordFps` | Frames per second of the recording | `15` |

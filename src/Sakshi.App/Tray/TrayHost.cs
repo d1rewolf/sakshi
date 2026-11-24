@@ -209,6 +209,9 @@ internal sealed class TrayHost(TrayServices services, TrayController controller,
     /// <summary>Left click or the menu item: off the UI thread (the controller never faults).</summary>
     public void Toggle() => _ = Task.Run(() => controller.RunAsync(["toggle"], CancellationToken.None));
 
+    /// <summary>A menu item's toggle: "--video" or "--audio" says which kind a start is, whatever the setting.</summary>
+    public void Toggle(string kind) => _ = Task.Run(() => controller.RunAsync(["toggle", kind], CancellationToken.None));
+
     /// <summary>The "Re-pick window" item: pick the recorded window again while recording.</summary>
     public void Repick() => _ = Task.Run(() => controller.RunAsync(["repick"], CancellationToken.None));
 

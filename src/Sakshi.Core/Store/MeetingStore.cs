@@ -18,7 +18,8 @@ public sealed class StoreFailedException(string message, string dir, Exception? 
 /// </summary>
 public sealed partial class MeetingStore(string meetingsDir, string archiveDir, ILog log)
 {
-    private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".mov", ".ts", ".flv", ".webm"];
+    // A meeting's recording: a video, or the sound of a sound-only one (.m4a).
+    private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".mov", ".ts", ".flv", ".webm", ".m4a"];
 
     [GeneratedRegex(@"^([0-9]{4})-([0-9]{2})-([0-9]{2})(-[A-Z][a-z]{2})?\z|^([0-9]{2})-([0-9]{2})-([0-9]{4})(-[A-Z][a-z]{2})?\z")]
     private static partial Regex DayLike();

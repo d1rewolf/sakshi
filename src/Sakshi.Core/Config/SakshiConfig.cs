@@ -59,6 +59,11 @@ public sealed record SakshiConfig
     public string RecordEncoder { get; init; } = "";
     /// <summary>Where OBS writes the recording before Sakshi moves it; blank for OBS's usual folder.</summary>
     public string RecordFolder { get; init; } = "";
+    /// <summary>
+    /// Record sound only (no window, no picker) when a recording starts from the shortcut, a click on the bar icon or
+    /// <c>sakshi toggle</c>; the menu has an item for each kind either way. The meeting keeps a .m4a, not a video.
+    /// </summary>
+    public bool RecordAudioOnly { get; init; }
     /// <summary>Open the live transcript window by itself when a recording starts.</summary>
     public bool LiveTranscript { get; init; }
 

@@ -8,7 +8,8 @@ namespace Sakshi.App.Tray;
 /// bars such as Omarchy's pin icons by that ID, so a changing tooltip would lose the pin. The live
 /// status (elapsed time, what is transcribing) goes in the menu's first line instead.
 /// </remarks>
-internal sealed record TrayView(string Tooltip, TrayIconState Icon, string StatusLine, string ToggleLabel, bool Recording)
+internal sealed record TrayView(string Tooltip, TrayIconState Icon, string StatusLine, string ToggleLabel, bool Recording,
+    bool CanStart = false)
 {
     public const string Name = "Sakshi";
 
@@ -17,7 +18,8 @@ internal sealed record TrayView(string Tooltip, TrayIconState Icon, string Statu
         Icons.StateFor(status.State, blinkOn),
         MenuLine(status.Tooltip),
         status.State switch { "recording" => "Stop recording", "naming" => "Name recording", _ => "Start recording" },
-        status.State == "recording");
+        status.State == "recording",
+        status.State is "idle" or "transcribing");
 
     /// <summary>
     /// The status for the menu's first line. The status's own " — click to …" hint is for bars that run

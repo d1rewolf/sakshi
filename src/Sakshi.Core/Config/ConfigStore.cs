@@ -102,6 +102,9 @@ public static class ConfigStore
           // "obsSource": "{obsSource}",
           // "pickerPriorityRegex": "zoom|teams|meet\\.google|webex|gotomeeting",
 
+          // true: the shortcut, a click on the bar icon and "sakshi toggle" record sound only (no window):
+          // "recordAudioOnly": false,
+
           // OBS settings for Sakshi's own OBS profile (yours is never changed):
           // "recordFps": 15,
           // "recordMaxWidth": 1920,

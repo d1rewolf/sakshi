@@ -13,6 +13,18 @@ public static class Ffmpeg
             ct);
 
     /// <summary>
+    /// The sound of <paramref name="input"/>, copied as it is (no re-encoding) into <paramref name="output"/>, an .m4a,
+    /// next to it; the input is deleted once the copy is complete. Returns the .m4a's path.
+    /// </summary>
+    public static async Task<string> KeepAudioOnlyAsync(string input, CancellationToken ct)
+    {
+        var output = Path.ChangeExtension(input, ".m4a");
+        await RunCheckedAsync(["-y", "-loglevel", "error", "-i", input, "-vn", "-c:a", "copy", output], ct);
+        File.Delete(input);
+        return output;
+    }
+
+    /// <summary>
     /// The audio of <paramref name="input"/> from <paramref name="from"/>, at most <paramref name="maxLength"/> of it,
     /// as 16 kHz mono 16-bit PCM. Works on a recording OBS is still writing (Hybrid MP4, MKV): it returns what has
     /// been written so far. Null when ffmpeg cannot read the file (yet), or does not start.

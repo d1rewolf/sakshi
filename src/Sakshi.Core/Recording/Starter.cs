@@ -39,12 +39,13 @@ public sealed class Starter(
     private readonly Func<TimeSpan, CancellationToken, Task> _delay = delay ?? Task.Delay;
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(250);
 
-    public async Task<int> StartAsync(CancellationToken ct)
+    /// <param name="soundOnly">Record sound only: no window, no picker; the meeting keeps a .m4a.</param>
+    public async Task<int> StartAsync(CancellationToken ct, bool soundOnly = false)
     {
         var starting = false;
         try
         {
-            return await RunAsync(ct, () => starting = true, () => starting = false);
+            return await RunAsync(ct, soundOnly, () => starting = true, () => starting = false);
         }
         catch (OperationCanceledException)
         {
@@ -81,7 +82,7 @@ public sealed class Starter(
         if (capture.OpensSystemPicker) pickerWait?.Opening();
     }
 
-    private async Task<int> RunAsync(CancellationToken ct, Action markStarting, Action markIdle)
+    private async Task<int> RunAsync(CancellationToken ct, bool soundOnly, Action markStarting, Action markIdle)
     {
         // A start would overwrite the capture (on the outputActive branch too) and lose the recording's
         // place in the naming flow: the stop names and stores it first, as bash's import refused.
@@ -110,7 +111,7 @@ public sealed class Starter(
         }
 
         var wasRunning = obsRunning();
-        if (!wasRunning) PickerOnItsWay();
+        if (!wasRunning && !soundOnly) PickerOnItsWay();
         await launcher.EnsureRunningAsync(ct);
         if (!wasRunning) store.Update(s => s with { ObsLaunched = obsStartTime?.Invoke() });
         await using var obs = await connect(ct);
@@ -124,16 +125,17 @@ public sealed class Starter(
             return 0;
         }
 
-        if (obsSettings is null) return await RecordAsync(obs, ct, markStarting, markIdle);
+        Task<int> Record() => soundOnly ? RecordSoundOnlyAsync(obs, ct, markStarting, markIdle) : RecordAsync(obs, ct, markStarting, markIdle);
+        if (obsSettings is null) return await Record();
 
         // An OBS the user opened themselves is switched to Sakshi's settings only if they agree.
         var ours = store.Load().ObsLaunched is { } launched && obsStartTime?.Invoke() is { } running
             && (running - launched).Duration() < TimeSpan.FromSeconds(1);
         if (!await obsSettings.EnterAsync(obs, ask: wasRunning && !ours, ct)) return 0;
-        PickerOnItsWay();
+        if (!soundOnly) PickerOnItsWay();
         try
         {
-            return await RecordAsync(obs, ct, markStarting, markIdle);
+            return await Record();
         }
         catch
         {
@@ -269,6 +271,58 @@ public sealed class Starter(
         store.Update(s => s with { Capture = new Capture(CapturePhase.Recording, started, SourceSize: size) });
         markIdle();
         notifier.Notify("Recording started", $"{srcW}×{srcH} → {baseW}×{baseH}. Click the bar icon to stop.", Urgency.Low);
+        return 0;
+    }
+
+    /// <summary>The scene of a sound-only recording: the microphone and the computer's sound, no window.</summary>
+    internal string SoundOnlyScene => $"{config.ObsScene} (sound only)";
+
+    /// <summary>
+    /// A sound-only recording: its own scene (no window, so no picker), and a small black picture, since OBS always
+    /// records one; after the stop only the sound is kept.
+    /// </summary>
+    private async Task<int> RecordSoundOnlyAsync(ObsClient obs, CancellationToken ct, Action markStarting, Action markIdle)
+    {
+        var scene = SoundOnlyScene;
+        try
+        {
+            await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }, ct);
+        }
+        catch (ObsRequestException)
+        {
+            await obs.RequestAsync("CreateScene", new { sceneName = scene }, ct);
+            await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = scene }, ct);
+        }
+        if (obsSettings is not null) await obsSettings.EnsureSceneAudioAsync(obs, scene, ct);
+        await capture.PrepareSoundOnlyAsync(obs, scene, ct);
+
+        store.Update(s => s with { Capture = new Capture(CapturePhase.Starting, clock.Now) });
+        markStarting();
+        // Only on Sakshi's own profile: the user's keeps its size.
+        if (obsSettings is not null)
+        {
+            try
+            {
+                await obs.RequestAsync("SetVideoSettings", new { baseWidth = 640, baseHeight = 360, outputWidth = 640, outputHeight = 360 }, ct);
+            }
+            catch (ObsRequestException e)
+            {
+                log.Info($"could not make the picture small ({e.Message}); it is thrown away after the stop anyway");
+            }
+        }
+
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            await obs.RequestAsync("StartRecord", null, CancellationToken.None);
+        }
+        catch (ObsRequestException)
+        {
+            throw new StartFailed("OBS refused to start recording");
+        }
+        store.Update(s => s with { Capture = new Capture(CapturePhase.Recording, clock.Now, AudioOnly: true) });
+        markIdle();
+        notifier.Notify("Recording sound only", "No window and no pictures: just the sound. Click the bar icon to stop.", Urgency.Low);
         return 0;
     }
 

@@ -15,7 +15,7 @@ public enum ChooserOs { MacOS, Windows }
 /// It always asks, because window IDs don't survive a restart of the window or of OBS.
 /// </summary>
 public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompter prompter, ILog log,
-    Func<ObsClient, string, string, CancellationToken, Task>? prepare = null) : IWindowCapture
+    Func<ObsClient, string, string?, CancellationToken, Task>? prepare = null) : IWindowCapture
 {
     private const string Title = "Pick the window to record";
 
@@ -51,6 +51,10 @@ public sealed class ObsWindowChooser(ChooserOs os, SakshiConfig config, IPrompte
     public string InputKind => os == ChooserOs.MacOS ? "screen_capture" : "window_capture";
 
     public object NewSourceSettings => os == ChooserOs.MacOS ? new { type = 1 } : new { method = 2 };
+
+    /// <summary>A sound-only scene gets what <c>prepare</c> adds (macOS: the computer's sound), with no window to mute.</summary>
+    public Task PrepareSoundOnlyAsync(ObsClient obs, string scene, CancellationToken ct) =>
+        prepare is null ? Task.CompletedTask : prepare(obs, scene, null, ct);
 
     public async Task<bool> SelectWindowAsync(ObsClient obs, string scene, string source, bool sourceJustCreated, CancellationToken ct)
     {

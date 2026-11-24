@@ -11,6 +11,12 @@ public interface IWindowCapture
     /// </summary>
     bool OpensSystemPicker => false;
 
+    /// <summary>
+    /// A sound-only recording's scene: whatever this platform needs besides the microphone and
+    /// <see cref="Obs.SceneAudio"/> (macOS: the computer's sound). Nothing by default.
+    /// </summary>
+    Task PrepareSoundOnlyAsync(ObsClient obs, string scene, CancellationToken ct) => Task.CompletedTask;
+
     /// <summary>The OBS input kind that captures a window on this platform.</summary>
     string InputKind { get; }
 

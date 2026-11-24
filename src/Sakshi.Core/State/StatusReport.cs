@@ -30,7 +30,7 @@ public static class StatusReport
                     Elapsed(capture.Started, now));
             case CapturePhase.Recording:
                 var rec = Elapsed(capture.Started, now);
-                return new Status("recording", $"Recording meeting ({rec}) — click to stop", rec);
+                return new Status("recording", $"Recording {(capture.AudioOnly ? "sound only" : "meeting")} ({rec}) — click to stop", rec);
         }
 
         if (s.Jobs.Count > 0)

@@ -186,6 +186,22 @@ public sealed class StarterTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Sound_only_records_its_own_scene_with_no_window_and_no_picker()
+    {
+        var capture = new FakeCapture(() => true, systemPicker: true);
+        Assert.Equal(0, await OwnProfileStarter(capture).StartAsync(TestContext.Current.CancellationToken, soundOnly: true));
+
+        Assert.Equal(0, capture.Calls);   // no window is picked
+        Assert.Contains(_calls, c => c.Type == "SetCurrentProgramScene" && c.Data.GetProperty("sceneName").GetString() == "Scene (sound only)");
+        Assert.DoesNotContain(_calls, c => c.Type == "CreateInput" && c.Data.GetProperty("inputName").GetString() == "Src");
+        Assert.Contains(_calls, c => c.Type == "CreateInput" && c.Data.GetProperty("inputName").GetString() == "Sakshi Microphone");
+        var video = _calls.Single(c => c.Type == "SetVideoSettings" && c.Data.TryGetProperty("baseWidth", out _)).Data;
+        Assert.Equal(640, video.GetProperty("baseWidth").GetInt32());
+        Assert.Contains("StartRecord", Types());
+        Assert.True(_store.Load().Capture is { Phase: CapturePhase.Recording, AudioOnly: true });
+    }
+
+    [Fact]
     public async Task On_its_own_profile_a_missing_scene_is_made()
     {
         _sceneMissing = true;

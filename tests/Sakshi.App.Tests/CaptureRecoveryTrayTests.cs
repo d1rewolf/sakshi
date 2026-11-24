@@ -131,6 +131,22 @@ public sealed class CaptureRecoveryTrayTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task A_sound_only_recording_has_no_window_to_watch_or_re_pick()
+    {
+        _f.Recovery = _recovery;
+        _f.UseObsServer();
+        _f.Set(new Capture(CapturePhase.Recording, _f.Clock.Now, AudioOnly: true));
+        var c = _f.Controller();
+
+        await c.FreezeTickAsync(Watch(), Ct);
+        var r = await c.RunAsync(["repick"], Ct);
+
+        Assert.Empty(_f.ObsServer!.Requests);
+        Assert.Equal(0, _recovery.Repicks);
+        Assert.Contains(_f.Notifier.Sent, n => n.Body == TrayController.SoundOnlyNoWindow);
+    }
+
+    [Fact]
     public async Task The_freeze_check_steps_aside_while_the_gate_is_held()
     {
         // The reminder prompt holds the gate while it is open: the check must not wait behind it.

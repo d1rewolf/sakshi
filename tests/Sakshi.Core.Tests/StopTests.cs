@@ -42,7 +42,7 @@ public sealed class StopTests : IDisposable
             [new PromptRow("\U000F0193", "Save it", "Name it and transcribe"), new PromptRow("\U000F01B4", "Don't save", "Throw this recording away")],
             _f.Prompter.Rows[0]);
         Assert.Equal(
-            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", "Moves the video to " + Sakshi.Core.Recording.Recorder.TrashName)],
+            [new PromptRow("\U000F0193", "Keep it", "Go back to naming it"), new PromptRow("\U000F01B4", "Yes, delete it", "Moves the recording to " + Sakshi.Core.Recording.Recorder.TrashName)],
             _f.Prompter.Rows[1]);
     }
 
@@ -273,6 +273,39 @@ public sealed class StopTests : IDisposable
         await Stop("direct");
 
         Assert.Equal(1, handedBack);
+    }
+
+    [Fact]
+    public async Task A_sound_only_recording_keeps_only_its_sound_and_asks_nothing_about_pictures()
+    {
+        var video = _f.MkVideo(Path.Combine(_f.Rec, "obs.mp4"));
+        _f.Obs.OutputPath = video;
+        _f.Set(new Capture(CapturePhase.Recording, _f.Clock.Now, AudioOnly: true));
+        _f.KeepSoundOnly = (v, _) =>
+        {
+            var m4a = Path.ChangeExtension(v, ".m4a");
+            File.Move(v, m4a);
+            return Task.FromResult(m4a);
+        };
+
+        Assert.Equal(0, await Stop("talk"));
+
+        Assert.DoesNotContain("Frames to keep", _f.Prompter.Shown);
+        Assert.True(File.Exists(Path.Combine(_f.Meetings, DayFolder.For(_f.Clock.Now.ToLocalTime()), "talk", "talk.m4a")));
+        Assert.Equal("-F none", _f.Jobs.Single().FrameArgs);
+    }
+
+    [Fact]
+    public async Task If_the_sound_cannot_be_kept_alone_the_whole_recording_is_stored()
+    {
+        var video = _f.MkVideo(Path.Combine(_f.Rec, "obs.mp4"));
+        _f.Obs.OutputPath = video;
+        _f.Set(new Capture(CapturePhase.Recording, _f.Clock.Now, AudioOnly: true));
+        _f.KeepSoundOnly = (_, _) => throw new InvalidOperationException("ffmpeg broke");
+
+        Assert.Equal(0, await Stop("talk"));
+
+        Assert.Equal(1, _f.Stored("talk"));
     }
 
     [Fact]

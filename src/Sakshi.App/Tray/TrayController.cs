@@ -38,6 +38,7 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
 
     private const string RepickUnsupported = "Re-picking the window while recording works only on Linux under Hyprland.";
     private const string NothingToRepick = "Not recording — nothing to re-pick.";
+    internal const string SoundOnlyNoWindow = "This recording is sound only — there is no window to re-pick.";
 
     private enum Op { None, Toggle, Start, Stop, Import, Repick }
 
@@ -102,12 +103,20 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
         {
             switch (Arg(0))
             {
+                case "start" or "toggle" when SoundOnly(Arg(1)) is null:
+                    return Die($"usage: sakshi {args[0]} [--audio|--video]");
                 case "start":
-                    return await RecordingOpAsync(Op.Start, StartLockedAsync, token).ConfigureAwait(false);
+                {
+                    var soundOnly = SoundOnly(Arg(1))!.Value;
+                    return await RecordingOpAsync(Op.Start, t => StartLockedAsync(t, soundOnly), token).ConfigureAwait(false);
+                }
                 case "stop":
                     return await RecordingOpAsync(Op.Stop, t => StopLockedAsync(Arg(1), t), token).ConfigureAwait(false);
                 case "toggle":
-                    return await RecordingOpAsync(Op.Toggle, ToggleLockedAsync, token).ConfigureAwait(false);
+                {
+                    var soundOnly = SoundOnly(Arg(1))!.Value;
+                    return await RecordingOpAsync(Op.Toggle, t => ToggleLockedAsync(t, soundOnly), token).ConfigureAwait(false);
+                }
                 case "repick":
                     return await RecordingOpAsync(Op.Repick, RepickLockedAsync, token).ConfigureAwait(false);
                 case "import":
@@ -213,7 +222,19 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
         lock (_sync) _recordingOp = op;
     }
 
-    private Task<CommandResult> ToggleLockedAsync(CancellationToken ct)
+    /// <summary>
+    /// "--audio": sound only; "--video": the window and its sound; nothing: the recordAudioOnly setting decides. Null
+    /// for anything else.
+    /// </summary>
+    private bool? SoundOnly(string? flag) => flag switch
+    {
+        null => _s.Config.RecordAudioOnly,
+        "--audio" => true,
+        "--video" => false,
+        _ => null,
+    };
+
+    private Task<CommandResult> ToggleLockedAsync(CancellationToken ct, bool soundOnly)
     {
         switch (_s.Store.Load().Capture.Phase)
         {
@@ -224,16 +245,16 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
                 return Task.FromResult(Notice(StillBusy));
             default:
                 Claim(Op.Start);
-                return StartLockedAsync(ct);
+                return StartLockedAsync(ct, soundOnly);
         }
     }
 
-    private async Task<CommandResult> StartLockedAsync(CancellationToken ct)
+    private async Task<CommandResult> StartLockedAsync(CancellationToken ct, bool soundOnly)
     {
         // The Starter runs housekeep first (bash cmd_start did), so a start holds the recording slot
         // and the gate while old day folders are archived: a click meanwhile gets "Still busy".
         // Starter reports its own failures (log + notification) and rethrows only a cancellation.
-        var code = await _s.Starter.StartAsync(ct).ConfigureAwait(false);
+        var code = await _s.Starter.StartAsync(ct, soundOnly).ConfigureAwait(false);
         return new CommandResult(code, "", "");
     }
 
@@ -242,6 +263,7 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
     {
         if (_s.CaptureRecovery is not { } recovery || _s.ConnectObs is not { } connect) return Die(RepickUnsupported);
         if (_s.Store.Load().Capture.Phase != CapturePhase.Recording) return Notice(NothingToRepick);
+        if (_s.Store.Load().Capture.AudioOnly) return Notice(SoundOnlyNoWindow);
         try
         {
             await using var obs = await connect(ct).ConfigureAwait(false);
@@ -652,7 +674,8 @@ public sealed class TrayController(TrayServices services) : IAsyncDisposable
     internal async Task FreezeTickAsync(FreezeWatch watch, CancellationToken ct)
     {
         var capture = _s.Store.Load().Capture;
-        if (capture.Phase != CapturePhase.Recording || capture.Started is not { } started)
+        // Sound only: OBS's picture is black and still on purpose; there is no window to freeze.
+        if (capture.Phase != CapturePhase.Recording || capture.AudioOnly || capture.Started is not { } started)
         {
             if (_freezeStarted is not null)
             {

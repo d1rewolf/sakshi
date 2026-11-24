@@ -60,9 +60,11 @@ internal static class Commands
           sakshi share-picker [ARGS]       Hyprland share picker wrapper (Linux; set as custom_picker_binary)
           sakshi --version                 print the version
           sakshi tray                      run the tray icon (also: sakshi with no arguments)
-          sakshi start                     start recording (through the tray)
+          sakshi start [--audio|--video]   start recording (through the tray); --audio records
+                                           sound only, --video the window too; neither: the
+                                           recordAudioOnly setting decides
           sakshi stop [NAME]               stop recording (through the tray)
-          sakshi toggle                    start or stop recording (through the tray)
+          sakshi toggle [--audio|--video]  start or stop recording (through the tray)
           sakshi repick                    pick the recorded window again, without stopping
                                            (through the tray; Linux under Hyprland)
           sakshi import VIDEO [NAME]       import a video (through the tray)
