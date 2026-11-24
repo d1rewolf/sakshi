@@ -88,7 +88,7 @@ find and share meetings.
 The first time the installed app starts, a **Set up Sakshi** window lists what
 it needs. Each missing piece has its fix command and a **Copy** button: run the
 command in a terminal, then choose **Check again**. The window also opens at
-any later start where something is missing, and **Setup…** in the tray menu
+any later start where something is missing, and **Check setup…** in the tray menu
 opens it whenever you like.
 
 From a terminal, run `sakshi doctor`. It checks OBS, ffmpeg and the rest, prints one line per
@@ -170,7 +170,7 @@ Run the AppImage once, so `~/.local/bin/sakshi` exists. Then:
 - Bind the chord in `~/.config/hypr/bindings.lua` to
   `home .. "/.local/bin/sakshi toggle"`.
 - Set up the share picker, which lists meeting windows first. The setup
-  window (**Setup…** in the tray menu) gives you a command that does all of
+  window (**Check setup…** in the tray menu) gives you a command that does all of
   this; by hand, make a small script, for example
   `~/.local/bin/sakshi-share-picker`:
 

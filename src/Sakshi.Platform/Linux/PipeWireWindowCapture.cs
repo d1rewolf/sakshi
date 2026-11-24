@@ -72,12 +72,11 @@ public sealed class PipeWireWindowCapture(
         if (sourceJustCreated)
         {
             await HopAsync(obs, stripToken: false, ct);
-            await WaitForPickAsync(obs, scene, source, ct);
-            return true;
+            return await WaitForPickAsync(obs, scene, source, ct);
         }
         if (!config.ObsReselectWindow) return true;
-        await RepickAsync(obs, scene, source, ct);
-        return true;
+        await HopAsync(obs, stripToken: true, ct);
+        return await WaitForPickAsync(obs, scene, source, ct);
     }
 
     /// <summary>
@@ -87,7 +86,7 @@ public sealed class PipeWireWindowCapture(
     public async Task RepickAsync(ObsClient obs, string scene, string source, CancellationToken ct)
     {
         await HopAsync(obs, stripToken: true, ct);
-        await WaitForPickAsync(obs, scene, source, ct);
+        await WaitForPickAsync(obs, scene, source, ct);   // closed without a choice: the recording carries on as it was
     }
 
     /// <summary>
@@ -158,36 +157,52 @@ public sealed class PipeWireWindowCapture(
         }
     }
 
-    private async Task WaitForPickAsync(ObsClient obs, string scene, string source, CancellationToken ct)
+    /// <summary>
+    /// Waits for the user's pick. False when they closed the picker without choosing (Esc): the start stops at once
+    /// instead of waiting for a window that is not coming.
+    /// </summary>
+    private async Task<bool> WaitForPickAsync(ObsClient obs, string scene, string source, CancellationToken ct)
     {
         if (!UnderHyprland)
         {
             await AskInScreenSharingDialogAsync(obs, scene, source, ct);
-            return;
+            return true;
         }
 
         if (pickerWait is null) notifier.Notify("Pick the window to record", "Select it in the share picker.", Urgency.Low);
         pickerWait?.Opening();
+        bool closed;
         try
         {
-            await WaitForHyprlandPickerAsync(ct);
+            closed = await WaitForHyprlandPickerAsync(ct);
         }
         finally
         {
             pickerWait?.Done();
         }
+        if (!closed) return true;
+        // A chosen window gets its size within a moment of the picker closing; a cancelled pick never does.
+        for (var i = 0; i < ChosenTicks; i++)
+        {
+            if (await SourceHasSizeAsync(obs, scene, source, ct)) return true;
+            await delay(Tick, ct);
+        }
+        log.Info("the picker closed without a window");
+        return false;
     }
+
 
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(250);
     private static readonly int SlowTicks = (int)(TimeSpan.FromSeconds(10) / Tick);
     private static readonly int StartTicks = (int)(TimeSpan.FromSeconds(20) / Tick);
     private static readonly int OpenTicks = (int)(TimeSpan.FromMinutes(3) / Tick);
+    private static readonly int ChosenTicks = (int)(TimeSpan.FromSeconds(2) / Tick);   // after Tick: fields start in order
 
     /// <summary>
     /// Waits for the picker to start (up to 20 s), then for the user to choose (it closes; up to 3 min). The sign goes
-    /// once its overlay shows, and says so when nothing shows for 10 s.
+    /// once its overlay shows, and says so when nothing shows for 10 s. True when the picker came and closed.
     /// </summary>
-    private async Task WaitForHyprlandPickerAsync(CancellationToken ct)
+    private async Task<bool> WaitForHyprlandPickerAsync(CancellationToken ct)
     {
         var ticks = 0;
         while (!_pickerRunning())
@@ -196,7 +211,7 @@ public sealed class PipeWireWindowCapture(
             {
                 // Hyprland without hyprland-preview-share-picker (another portal picker, or none needed).
                 log.Info("picker never appeared, continuing with whatever OBS captures");
-                return;
+                return false;
             }
             if (++ticks == SlowTicks) pickerWait?.Slow();
             await delay(Tick, ct);
@@ -207,7 +222,7 @@ public sealed class PipeWireWindowCapture(
             if (i == OpenTicks)
             {
                 log.Info("picker still open after 3 min; carrying on");
-                return;
+                return false;
             }
             if (!shown && _pickerVisible())
             {
@@ -217,6 +232,7 @@ public sealed class PipeWireWindowCapture(
             if (!shown && ++ticks == SlowTicks) pickerWait?.Slow();
             await delay(Tick, ct);
         }
+        return true;
     }
 
     private async Task AskInScreenSharingDialogAsync(ObsClient obs, string scene, string source, CancellationToken ct)

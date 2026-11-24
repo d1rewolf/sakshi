@@ -31,6 +31,9 @@ public sealed class Starter(
 {
     private sealed class StartFailed(string message) : Exception(message);
 
+    /// <summary>The user closed the picker without choosing: their decision, not a failure.</summary>
+    private sealed class NothingPicked() : Exception("No window was picked; not recording.");
+
     private const string UnnamedWaiting = "An unnamed recording is waiting — choose Name recording in the Sakshi menu to name and store it.";
 
     private readonly Func<TimeSpan, CancellationToken, Task> _delay = delay ?? Task.Delay;
@@ -47,6 +50,13 @@ public sealed class Starter(
         {
             if (starting) SetIdle();
             throw;
+        }
+        catch (NothingPicked e)
+        {
+            if (starting) SetIdle();
+            log.Info(e.Message);
+            notifier.Notify("Not recording", "No window was picked.", Urgency.Low);
+            return 0;
         }
         catch (Exception e)
         {
@@ -194,7 +204,7 @@ public sealed class Starter(
         // The capture knows whether this platform needs a pick (window IDs do not survive restarts on
         // macOS and Windows; PipeWire opens its own picker for a new source).
         if (!await capture.SelectWindowAsync(obs, config.ObsScene, config.ObsSource, justCreated, ct))
-            throw new StartFailed("No window selected — recording not started.");
+            throw new NothingPicked();
         // A reload may have recreated every source; look the item up again.
         itemId = await GetItemIdAsync(obs, ct)
             ?? throw new StartFailed($"source '{config.ObsSource}' vanished after reload");

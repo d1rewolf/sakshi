@@ -35,7 +35,8 @@ Its menu has:
 | **Re-pick window** | Linux under Hyprland, while recording: choose the recorded window again without stopping |
 | **Open meetings folder** | Opens the folder your meetings are saved in |
 | **Open config** | Opens the settings file (see [Settings](#settings)) |
-| **Setup…** | Shows what Sakshi still needs, with the commands to install it |
+| **Check setup…** | Shows what Sakshi still needs, with the commands to install it |
+| **About Sakshi** | The version (and the commit it was built from), links to this project and its user guide, and the folder with `sakshi.log` for a bug report |
 | **Start at login** | Whether Sakshi starts when you log in |
 | **Quit** | Closes Sakshi; a transcription that is running carries on |
 
@@ -279,7 +280,7 @@ in the folders listed in `handOffPath` as well as your PATH.
 
 | What you see | What to do |
 | --- | --- |
-| Sakshi says something is missing | Choose **Setup…** in the tray menu, run the commands it shows, then **Check again**. `sakshi doctor` in a terminal shows the same checks. |
+| Sakshi says something is missing | Choose **Check setup…** in the tray menu, run the commands it shows, then **Check again**. `sakshi doctor` in a terminal shows the same checks. |
 | The picture froze but the sound carried on | Linux under Hyprland: Sakshi usually fixes it by itself. If it asks, choose **Re-pick window**. |
 | "No window selected — recording not started" | The window picker was closed without a choice. Start again and pick the meeting window. |
 | **Transcription failed** | The video is safe in its meeting folder, and `transcribe.log` there says why. To try again, run `sakshi transcribe -F changes -D 8 -o FOLDER FOLDER/NAME.mp4`, with the meeting folder for `FOLDER` and the video's name for `NAME.mp4`. |

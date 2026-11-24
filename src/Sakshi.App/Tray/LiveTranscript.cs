@@ -30,7 +30,7 @@ internal sealed class LiveTranscript : IAsyncDisposable
         "The speech model named in Sakshi's config (\"model\") does not exist. Fix the path, or remove the setting to use " +
         "the standard model. The full transcript after the meeting needs it too.";
     internal const string NoFfmpegText =
-        "ffmpeg is not installed, so Sakshi cannot read the recording. Choose Setup… in the Sakshi menu for the command " +
+        "ffmpeg is not installed, so Sakshi cannot read the recording. Choose Check setup… in the Sakshi menu for the command " +
         "that installs it; the full transcript after the meeting needs it too.";
     internal const string LostText =
         "Sakshi can no longer read the recording file, so the live transcript has stopped. " +

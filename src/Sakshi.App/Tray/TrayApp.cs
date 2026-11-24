@@ -33,6 +33,7 @@ public sealed class TrayApp : PromptApplication
     private SetupWindow? _setup;
     private LiveTranscriptWindow? _liveWindow;
     private WindowsHotkey? _hotkey;
+    private AboutWindow? _about;
     private bool? _wasRecording;
 
     public override void OnFrameworkInitializationCompleted()
@@ -67,10 +68,12 @@ public sealed class TrayApp : PromptApplication
         meetings.Click += (_, _) => host.OpenMeetings();
         var config = new NativeMenuItem("Open config");
         config.Click += (_, _) => host.OpenConfig();
-        var setup = new NativeMenuItem("Setup…");
+        var setup = new NativeMenuItem("Check setup…");
         setup.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); _ = ShowSetupAsync(host); };
         var startAtLogin = StartAtLoginItem(host);
         if (startAtLogin is not null) _ = RefreshStartAtLoginAfter(upkeep, host, startAtLogin);
+        var about = new NativeMenuItem("About Sakshi");
+        about.Click += (_, _) => { ForegroundRights.ClaimForMenuClick(); ShowAbout(host); };
         var quit = new NativeMenuItem("Quit");
         quit.Click += (_, _) => Quit();
 
@@ -85,6 +88,7 @@ public sealed class TrayApp : PromptApplication
         menu.Add(setup);
         if (startAtLogin is not null) menu.Add(startAtLogin);
         menu.Add(new NativeMenuItemSeparator());
+        menu.Add(about);
         menu.Add(quit);
 
         _icon = NewIcon(menu);
@@ -166,7 +170,22 @@ public sealed class TrayApp : PromptApplication
         catch (Exception e) { host.Log($"setup: could not open the window: {e.Message}"); }
     }
 
-    /// <summary>The "Setup…" item: runs the checks off the UI thread, then opens (or brings forward) the window.</summary>
+    /// <summary>The "About Sakshi" item: one window at a time; a second click brings it forward.</summary>
+    private void ShowAbout(TrayHost host)
+    {
+        if (_about is { } open)
+        {
+            open.Activate();
+            return;
+        }
+        var window = new AboutWindow(AppVersion.WithCommit, host.OpenUrl, host.OpenLogFolder);
+        window.Closed += (_, _) => _about = null;
+        _about = window;
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>The "Check setup…" item: runs the checks off the UI thread, then opens (or brings forward) the window.</summary>
     private async Task ShowSetupAsync(TrayHost host)
     {
         try

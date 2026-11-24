@@ -247,6 +247,10 @@ internal sealed class TrayHost(TrayServices services, TrayController controller,
     public void OpenMeetings() => OpenWithDesktop(services.Config.MeetingsDir,
         () => Directory.CreateDirectory(services.Config.MeetingsDir));
 
+    /// <summary>The folder with sakshi.log, for a bug report.</summary>
+    public void OpenLogFolder() => OpenWithDesktop(Path.GetDirectoryName(services.Paths.LogFile)!,
+        () => Directory.CreateDirectory(Path.GetDirectoryName(services.Paths.LogFile)!));
+
     /// <summary>On a fresh machine there is no config file: write a commented starter, so the editor has one to open.</summary>
     public void OpenConfig() => OpenWithDesktop(services.Paths.ConfigFile, () =>
     {

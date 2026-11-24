@@ -102,6 +102,7 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         // UI thread does. It has no token yet, so nothing is stripped, and the user is told to pick.
         var polls = 0;
         bool Picker() { polls++; return polls is >= 2 and < 4; }
+        _zeroSizePolls = 0;   // the user picked: the window has its size
         await using var obs = await Connect();
         var ok = await Capture(Picker, new SakshiConfig { ObsReselectWindow = reselect })
             .SelectWindowAsync(obs, "Scene", "Src", true, TestContext.Current.CancellationToken);
@@ -185,6 +186,7 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         var polls = 0;
         // Picker appears on the 3rd check and closes on the 6th.
         bool Picker() { polls++; return polls is >= 3 and < 6; }
+        _zeroSizePolls = 0;   // the user picked: the window has its size
         await using var obs = await Connect();
         var ok = await Capture(Picker).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
 
@@ -256,6 +258,27 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         Assert.Equal(["opening", "done", "done"], wait.Seen);
         Assert.Equal(2, visibleChecks);   // no more looking once it showed
         Assert.Empty(_notifier.Sent);     // the sign replaces the notification
+    }
+
+    [Fact]
+    public async Task A_picker_closed_without_a_choice_ends_the_pick_within_two_seconds()
+    {
+        var looks = 0;
+        _zeroSizePolls = int.MaxValue;   // OBS never gets a window: Esc in the picker
+        await using var obs = await Connect();
+        var ok = await Capture(() => ++looks is >= 2 and < 5).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
+        Assert.False(ok);
+        Assert.Contains("the picker closed without a window", _logLines);
+        Assert.True(_sizePolls <= 8);
+    }
+
+    [Fact]
+    public async Task A_picker_closed_on_a_choice_is_a_pick()
+    {
+        var looks = 0;
+        _zeroSizePolls = 2;   // the window's size arrives a moment after the picker closes
+        await using var obs = await Connect();
+        Assert.True(await Capture(() => ++looks is >= 2 and < 5).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken));
     }
 
     [Fact]

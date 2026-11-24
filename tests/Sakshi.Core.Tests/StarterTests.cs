@@ -149,7 +149,7 @@ public sealed class StarterTests : IAsyncDisposable
             _launcher, capture, _notifier, _clock, _log, ct => ObsClient.ConnectAsync("127.0.0.1", server.Port, null, ct),
             () => false, (_, _) => Task.CompletedTask, pickerWait: wait);
 
-        Assert.Equal(1, await starter.StartAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(0, await starter.StartAsync(TestContext.Current.CancellationToken));
         Assert.Equal("opening", wait.Seen.First());   // before OBS was started
         Assert.Equal("done", wait.Seen.Last());
     }
@@ -405,13 +405,14 @@ public sealed class StarterTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task A_capture_that_returns_false_stops_the_start()
+    public async Task Closing_the_picker_without_a_choice_ends_the_start_at_once_and_quietly()
     {
         var code = await Starter(new FakeCapture(() => false)).StartAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, code);
+        Assert.Equal(0, code);   // the user's decision, not a failure
         Assert.Equal(CapturePhase.Idle, _store.Load().Capture.Phase);
         Assert.DoesNotContain("StartRecord", Types());
-        Assert.Contains(_notifier.Sent, n => n is (Urgency.Critical, "Sakshi", "No window selected — recording not started."));
+        Assert.DoesNotContain("GetSceneItemTransform", Types());   // no waiting for a window that is not coming
+        Assert.Equal([(Urgency.Low, "Not recording", "No window was picked.")], _notifier.Sent);
     }
 
     [Fact]

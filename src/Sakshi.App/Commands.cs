@@ -68,14 +68,7 @@ internal static class Commands
           sakshi import VIDEO [NAME]       import a video (through the tray)
         """;
 
-    /// <summary>The informational version without the build metadata the SDK appends ("0.1.0+abc123").</summary>
-    private static string Version()
-    {
-        var info = typeof(Commands).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion;
-        return (info ?? "0.0.0").Split('+')[0];
-    }
+    private static string Version() => AppVersion.Number;
 
     private sealed class StderrNotifier(TextWriter stderr) : INotifier
     {
