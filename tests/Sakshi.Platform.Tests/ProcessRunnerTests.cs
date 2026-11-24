@@ -178,9 +178,16 @@ public sealed class ProcessRunnerTests : IDisposable
         Assert.True(pid > 0);
 
         var deadline = DateTime.UtcNow.AddSeconds(20);
-        while (DateTime.UtcNow < deadline && (!File.Exists(argsFile) || File.ReadAllLines(argsFile).Length < argv.Length))
+        while (DateTime.UtcNow < deadline && LinesOf(argsFile).Length < argv.Length)
             Thread.Sleep(50);
-        Assert.Equal(argv, File.ReadAllLines(argsFile));
+        Assert.Equal(argv, LinesOf(argsFile));
+    }
+
+    /// <summary>The file's lines, or none while it is missing or (Windows) the helper still has it open.</summary>
+    private static string[] LinesOf(string path)
+    {
+        try { return File.Exists(path) ? File.ReadAllLines(path) : []; }
+        catch (IOException) { return []; }
     }
 
     [Fact]
