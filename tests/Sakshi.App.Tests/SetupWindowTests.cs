@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Sakshi.App.Tests.Prompts;
 using Sakshi.App.Tray;
 using Sakshi.Platform.Doctor;
@@ -31,6 +32,16 @@ public sealed class SetupWindowTests
         Assert.Equal("brew install --cask obs", Assert.Single(All<TextBox>(obs)).Text);
         Assert.Contains(All<Button>(obs), b => (string?)b.Content == "Copy");
         Assert.Empty(All<TextBox>(RowFor(w, "ffmpeg")));
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task Escape_closes_it() => HeadlessHost.Run(() =>
+    {
+        var w = new SetupWindow([Ffmpeg], () => Task.FromResult<IReadOnlyList<DoctorCheck>>([]), _ => { }, _ => { });
+        w.Show();
+        w.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
+        Assert.False(w.IsVisible);
         return Task.CompletedTask;
     });
 

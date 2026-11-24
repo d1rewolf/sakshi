@@ -57,6 +57,7 @@ internal sealed class SetupWindow : Window
             catch (Exception e) { _log($"setup: check again failed: {e.Message}"); }
         };
         _close.Click += (_, _) => Close();
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); } };   // like the prompts
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(_again);
         buttons.Children.Add(_close);

@@ -58,6 +58,7 @@ internal sealed class LiveTranscriptWindow : Window
         _copy.Click += async (_, _) => await CopyAllAsync();
         var close = new Button { Content = "Close" };
         close.Click += (_, _) => Close();
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); } };   // like the prompts
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(_copy);
         buttons.Children.Add(close);

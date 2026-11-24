@@ -1,3 +1,4 @@
+using Avalonia.Headless;
 using Sakshi.App.Tests.Prompts;
 using Sakshi.App.Tray;
 
@@ -98,6 +99,16 @@ public sealed class LiveTranscriptTests
         live.Exited(0);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal(LiveTranscript.EndedText, w.Status);
+    });
+
+    [Fact]
+    public Task Escape_closes_the_window() => HeadlessHost.Run(() =>
+    {
+        var w = new LiveTranscriptWindow(Live(), _ => { });
+        w.Show();
+        w.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
+        Assert.False(w.IsVisible);
+        return Task.CompletedTask;
     });
 
     [Fact]
