@@ -19,7 +19,7 @@ internal static class TrayEntry
         var (exit, prepared) = Prepare(paths, stdout, stderr,
             () => TrayInstance.TryAcquire(paths.StateDir),
             () => TrayServices.Create(paths, os, home, new AvaloniaPrompter(),
-                OperatingSystem.IsWindows() ? new LabsNotifier(new FileLog(paths.LogFile)) : null));
+                OperatingSystem.IsWindows() ? new LabsNotifier(new FileLog(paths.LogFile)) : null, new AvaloniaPickerWait()));
         if (prepared is not { } host) return exit;
         var services = host.Services;
 

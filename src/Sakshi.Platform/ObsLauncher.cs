@@ -28,6 +28,7 @@ public sealed class ObsLauncher(
         if (!running)
         {
             PrepareSakshiProfile();
+            ClearCrashMarkers();
             log.Info("launching OBS");
             var extra = config.ObsLaunchArgs.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             var launch = await install.LaunchAsync(extra, ct).ConfigureAwait(false);
@@ -52,6 +53,28 @@ public sealed class ObsLauncher(
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             log.Info($"could not write Sakshi's OBS profile ({e.Message}); OBS will make it when Sakshi first switches");
+        }
+    }
+
+    /// <summary>
+    /// OBS (32 and later) leaves a "run_" file in its .sentinel folder while it runs and deletes it when it quits; one
+    /// left behind (OBS was killed, or the computer went down) makes the next start ask whether to run in safe mode,
+    /// and wait there. Safe mode turns off the remote control Sakshi records through, so for Sakshi the answer is
+    /// always "normal": with OBS not running, the files are removed and OBS starts without asking.
+    /// </summary>
+    private void ClearCrashMarkers()
+    {
+        var dir = Path.Combine(paths.ObsConfigDir, ".sentinel");
+        try
+        {
+            if (!Directory.Exists(dir)) return;
+            var stale = Directory.GetFiles(dir, "run_*");
+            foreach (var file in stale) File.Delete(file);
+            if (stale.Length > 0) log.Info("OBS did not shut down cleanly last time; starting it normally, not in safe mode");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            log.Info($"could not clear OBS's unclean-shutdown marker ({e.Message}); OBS may ask about safe mode");
         }
     }
 

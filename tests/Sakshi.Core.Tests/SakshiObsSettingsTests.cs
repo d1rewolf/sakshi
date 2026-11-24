@@ -202,6 +202,28 @@ public sealed class SakshiObsSettingsTests : IAsyncDisposable
     }
 
     [Fact]
+    public void OBS_stopped_on_Sakshis_settings_is_pointed_back_at_the_users()
+    {
+        var obs = Paths.ObsConfigDir;
+        var mine = Path.Combine(SakshiObsProfile.ProfilesDir(obs), "Untitled");
+        Directory.CreateDirectory(mine);
+        File.WriteAllText(Path.Combine(mine, "basic.ini"), "[General]\nName=Untitled\n");
+        Directory.CreateDirectory(Path.Combine(obs, "basic", "scenes"));
+        File.WriteAllText(Path.Combine(obs, "basic", "scenes", "Untitled.json"), """{"name":"Untitled"}""");
+        File.WriteAllText(Path.Combine(obs, "user.ini"),
+            "[General]\nKeep=1\n\n[Basic]\nProfile=Sakshi\nProfileDir=Sakshi\nSceneCollection=Sakshi\nSceneCollectionFile=Sakshi.json\n");
+        _store.Update(s => s with { ObsReturn = new ObsReturn("Untitled", "Untitled") });
+
+        new SakshiObsSettings(new SakshiConfig(), Paths, HostOs.Linux, _store, _prompter, _log).RepairWhileObsStopped();
+
+        var ini = File.ReadAllText(Path.Combine(obs, "user.ini"));
+        Assert.Equal(("Untitled", "Untitled"), (IniText.Get(ini, "Basic", "Profile"), IniText.Get(ini, "Basic", "ProfileDir")));
+        Assert.Equal(("Untitled", "Untitled.json"), (IniText.Get(ini, "Basic", "SceneCollection"), IniText.Get(ini, "Basic", "SceneCollectionFile")));
+        Assert.Equal("1", IniText.Get(ini, "General", "Keep"));
+        Assert.Null(_store.Load().ObsReturn);
+    }
+
+    [Fact]
     public async Task Leaving_when_Sakshi_switched_nothing_does_nothing()
     {
         await WithObs(async (s, obs) => { await s.LeaveAsync(obs, TestContext.Current.CancellationToken); return 0; });

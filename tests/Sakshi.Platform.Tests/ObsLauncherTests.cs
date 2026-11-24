@@ -130,6 +130,34 @@ public sealed class ObsLauncherTests : IDisposable
     }
 
     [Fact]
+    public async Task Starting_OBS_clears_the_marker_of_an_unclean_shutdown_so_it_does_not_stop_at_safe_mode()
+    {
+        var sentinel = Path.Combine(_root, "obs", ".sentinel");
+        Directory.CreateDirectory(sentinel);
+        File.WriteAllText(Path.Combine(sentinel, "run_old"), "");
+        File.WriteAllText(Path.Combine(sentinel, "keep.txt"), "");
+        _runner.OnPath["obs"] = "/usr/bin/obs";
+
+        await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["keep.txt"], Directory.GetFiles(sentinel).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task A_running_OBS_keeps_its_marker()
+    {
+        var sentinel = Path.Combine(_root, "obs", ".sentinel");
+        Directory.CreateDirectory(sentinel);
+        File.WriteAllText(Path.Combine(sentinel, "run_current"), "");
+        WriteConfig("""{"server_enabled":true,"auth_required":true}""");
+        _runner.Running.Add("obs");
+
+        await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(File.Exists(Path.Combine(sentinel, "run_current")));
+    }
+
+    [Fact]
     public async Task Refuses_when_running_and_server_off()
     {
         WriteConfig("""{"server_enabled":false}""");

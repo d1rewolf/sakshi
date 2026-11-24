@@ -156,7 +156,8 @@ internal static class Commands
                 {
                     var log = new FileLog(paths.LogFile);
                     var state = new StateStore(paths.StateFile, log, Notifier(stderr, log)).Load();
-                    stdout.WriteLine(StatusReport.Compute(state, DateTimeOffset.Now, lockHeld: false).ToJson());
+                    var trayRunning = TrayInstance.IsRunning(paths.StateDir);
+                    stdout.WriteLine(StatusReport.Compute(state, DateTimeOffset.Now, lockHeld: false, trayRunning).ToJson());
                     return 0;
                 }
                 case "config":

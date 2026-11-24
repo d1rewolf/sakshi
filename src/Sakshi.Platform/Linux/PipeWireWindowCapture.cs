@@ -27,7 +27,9 @@ public sealed class PipeWireWindowCapture(
     ILog log,
     Func<TimeSpan, CancellationToken, Task> delay,
     Func<bool>? pickerRunning = null,
-    Func<string, string?>? env = null) : IWindowCapture
+    Func<string, string?>? env = null,
+    IPickerWait? pickerWait = null,
+    Func<bool>? pickerVisible = null) : IWindowCapture
 {
     private const string Scratch = "sakshi-scratch";
     private const string Kind = "pipewire-screen-capture-source";
@@ -36,6 +38,24 @@ public sealed class PipeWireWindowCapture(
         OperatingSystem.IsLinux()
             ? ProcCmdline.AnyArgv0Named("/proc", config.PickerBin)
             : runner.IsRunning(config.PickerBin));
+
+    /// <summary>The default picker's layer-shell namespace: it draws as an overlay layer, not as a window.</summary>
+    private const string PickerLayer = "ch.wysbd.hyprland-preview-share-picker";
+
+    // The process starts seconds before its overlay shows (it previews every window first): the overlay is what the user sees.
+    private readonly Func<bool> _pickerVisible = pickerVisible ?? (() => HyprlandLayerShown(runner, PickerLayer));
+
+    private static bool HyprlandLayerShown(IProcessRunner runner, string ns)
+    {
+        try
+        {
+            return runner.RunAsync("hyprctl", ["-j", "layers"], TimeSpan.FromSeconds(2), CancellationToken.None)
+                .GetAwaiter().GetResult().StdOut.Contains($"\"{ns}\"", StringComparison.Ordinal);
+        }
+        catch (Exception) { return false; }   // not knowing only keeps the sign up a little longer
+    }
+
+    public bool OpensSystemPicker => UnderHyprland && config.ObsReselectWindow;
 
     /// <summary>Whether this session runs Hyprland (its share picker, hyprctl).</summary>
     public bool UnderHyprland => !string.IsNullOrEmpty((env ?? Environment.GetEnvironmentVariable)("HYPRLAND_INSTANCE_SIGNATURE"));
@@ -86,8 +106,7 @@ public sealed class PipeWireWindowCapture(
         var path = "";
         if (stripToken)
         {
-            var file = ReadCollectionFileName();
-            path = file.Length > 0 ? Path.Combine(paths.ObsConfigDir, "basic", "scenes", file) : "";
+            path = CollectionFile(collection) ?? "";
             if (path.Length == 0 || !File.Exists(path))
                 throw new InvalidOperationException($"cannot find the scene collection file for '{collection}'");
         }
@@ -147,23 +166,56 @@ public sealed class PipeWireWindowCapture(
             return;
         }
 
-        notifier.Notify("Pick the window to record", "Select it in the share picker.", Urgency.Low);
-        var seen = false;
-        for (var i = 0; i < 40; i++)
+        if (pickerWait is null) notifier.Notify("Pick the window to record", "Select it in the share picker.", Urgency.Low);
+        pickerWait?.Opening();
+        try
         {
-            if (_pickerRunning()) { seen = true; break; }
-            await delay(TimeSpan.FromMilliseconds(250), ct);
+            await WaitForHyprlandPickerAsync(ct);
         }
-        if (!seen)
+        finally
         {
-            // Hyprland without hyprland-preview-share-picker (another portal picker, or none needed).
-            log.Info("picker never appeared, continuing with whatever OBS captures");
-            return;
+            pickerWait?.Done();
         }
-        for (var i = 0; i < 600 && _pickerRunning(); i++)
+    }
+
+    private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(250);
+    private static readonly int SlowTicks = (int)(TimeSpan.FromSeconds(10) / Tick);
+    private static readonly int StartTicks = (int)(TimeSpan.FromSeconds(20) / Tick);
+    private static readonly int OpenTicks = (int)(TimeSpan.FromMinutes(3) / Tick);
+
+    /// <summary>
+    /// Waits for the picker to start (up to 20 s), then for the user to choose (it closes; up to 3 min). The sign goes
+    /// once its overlay shows, and says so when nothing shows for 10 s.
+    /// </summary>
+    private async Task WaitForHyprlandPickerAsync(CancellationToken ct)
+    {
+        var ticks = 0;
+        while (!_pickerRunning())
         {
-            await delay(TimeSpan.FromMilliseconds(300), ct);
-            if (i == 599 && _pickerRunning()) log.Info("picker still open after 3 min; carrying on");
+            if (ticks == StartTicks)
+            {
+                // Hyprland without hyprland-preview-share-picker (another portal picker, or none needed).
+                log.Info("picker never appeared, continuing with whatever OBS captures");
+                return;
+            }
+            if (++ticks == SlowTicks) pickerWait?.Slow();
+            await delay(Tick, ct);
+        }
+        var shown = false;
+        for (var i = 0; _pickerRunning(); i++)
+        {
+            if (i == OpenTicks)
+            {
+                log.Info("picker still open after 3 min; carrying on");
+                return;
+            }
+            if (!shown && _pickerVisible())
+            {
+                shown = true;
+                pickerWait?.Done();
+            }
+            if (!shown && ++ticks == SlowTicks) pickerWait?.Slow();
+            await delay(Tick, ct);
         }
     }
 
@@ -238,16 +290,28 @@ public sealed class PipeWireWindowCapture(
         return false;
     }
 
-    private string ReadCollectionFileName()
+    /// <summary>
+    /// The file of the scene collection called <paramref name="collection"/>: the one whose "name" it is. Not
+    /// user.ini's SceneCollectionFile, which OBS updates later: right after a switch (Sakshi's own, before a recording)
+    /// it still names the collection OBS just left, and the wrong collection's window would be forgotten.
+    /// </summary>
+    private string? CollectionFile(string collection)
+    {
+        if (SakshiObsProfile.CollectionFileOf(paths.ObsConfigDir, collection) is { } found) return found;
+        var dir = Path.Combine(paths.ObsConfigDir, "basic", "scenes");
+        // A file that cannot be read for its name: user.ini's, when it names this collection.
+        return UserIni("SceneCollection") == collection && UserIni("SceneCollectionFile") is { Length: > 0 } f
+            ? Path.Combine(dir, f) : null;
+    }
+
+    private string? UserIni(string key)
     {
         try
         {
-            foreach (var line in File.ReadLines(Path.Combine(paths.ObsConfigDir, "user.ini")))
-                if (line.StartsWith("SceneCollectionFile=", StringComparison.Ordinal))
-                    return line["SceneCollectionFile=".Length..].TrimEnd('\r');
+            var path = Path.Combine(paths.ObsConfigDir, "user.ini");
+            return File.Exists(path) ? IniText.Get(File.ReadAllText(path), "Basic", key) : null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        return "";
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     private static readonly JsonSerializerOptions WriteOptions = new()

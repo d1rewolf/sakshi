@@ -108,6 +108,41 @@ public sealed class SakshiObsSettings(
         }
     }
 
+    /// <summary>
+    /// OBS was stopped (quit, killed, the computer went down) while on Sakshi's settings: it would open on them the next
+    /// time the user starts it. With OBS not running, its own settings file is pointed back at the user's profile and
+    /// scene collection. Never throws.
+    /// </summary>
+    public void RepairWhileObsStopped()
+    {
+        if (store.Load().ObsReturn is not { } back) return;
+        var file = Path.Combine(paths.ObsConfigDir, "user.ini");
+        try
+        {
+            if (!File.Exists(file)) return;
+            var text = File.ReadAllText(file);
+            if (IniText.Get(text, "Basic", "Profile") == Name && SakshiObsProfile.DirectoryOf(paths.ObsConfigDir, back.Profile) is { } dir)
+            {
+                text = IniText.Set(text, "Basic", "Profile", back.Profile);
+                text = IniText.Set(text, "Basic", "ProfileDir", Path.GetFileName(dir));
+            }
+            if (IniText.Get(text, "Basic", "SceneCollection") == Name && SakshiObsProfile.CollectionFileOf(paths.ObsConfigDir, back.Collection) is { } scenes)
+            {
+                text = IniText.Set(text, "Basic", "SceneCollection", back.Collection);
+                text = IniText.Set(text, "Basic", "SceneCollectionFile", Path.GetFileName(scenes));
+            }
+            var tmp = file + ".sakshi.tmp";
+            File.WriteAllText(tmp, text);
+            File.Move(tmp, file, overwrite: true);
+            store.Update(s => s with { ObsReturn = null });
+            log.Info($"OBS had stopped on Sakshi's settings; it opens on '{back.Profile}' / '{back.Collection}' again");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            log.Info($"could not point OBS back at the user's settings ({e.Message})");
+        }
+    }
+
     /// <summary>The microphone and the computer's sound in Sakshi's scene (<see cref="SceneAudio"/>).</summary>
     public Task EnsureSceneAudioAsync(ObsClient obs, string scene, CancellationToken ct) =>
         SceneAudio.EnsureAsync(obs, scene, os, log, ct);

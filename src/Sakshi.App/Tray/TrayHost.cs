@@ -44,6 +44,8 @@ internal sealed class TrayHost(TrayServices services, TrayController controller,
         });
         Background = controller.StartBackgroundAsync(_quit.Token);
         SetupAtStart = Task.Run(CheckAtStart);
+        // OBS stopped while on Sakshi's settings (it or Sakshi was killed): point it back at the user's.
+        if (services.ObsSettings is { } obsSettings && !services.ObsRunning()) _ = Task.Run(obsSettings.RepairWhileObsStopped);
     }
 
     private IReadOnlyList<DoctorCheck>? CheckAtStart()

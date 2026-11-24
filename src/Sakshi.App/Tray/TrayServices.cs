@@ -54,6 +54,9 @@ public sealed record TrayServices(
     /// <summary>Mending a frozen capture while recording; null where the platform has none (and in tests that do not need it).</summary>
     public ICaptureRecovery? CaptureRecovery { get; init; }
 
+    /// <summary>Sakshi's own OBS profile and collection: the switch to them and back. Null in tests.</summary>
+    public SakshiObsSettings? ObsSettings { get; init; }
+
     /// <summary>Opens a connection to OBS (the freeze check and re-pick use it); null in tests that do not need it.</summary>
     public Func<CancellationToken, Task<ObsClient>>? ConnectObs { get; init; }
 
@@ -75,14 +78,14 @@ public sealed record TrayServices(
     /// <paramref name="uiNotifier"/> is the Windows toast notifier (it lives in this project, not in Platform).
     /// </summary>
     public static TrayServices Create(SakshiPaths paths, HostOs os, string home, IPrompter prompter,
-        INotifier? uiNotifier = null)
+        INotifier? uiNotifier = null, IPickerWait? pickerWait = null)
     {
         var log = new FileLog(paths.LogFile);
         var runner = new ProcessRunner();
         var config = LoadConfig(paths, os, home, log);
         var clock = new SystemClock();
 
-        var adapters = PlatformAdapters.Create(os, config, paths, runner, prompter, log, uiNotifier);
+        var adapters = PlatformAdapters.Create(os, config, paths, runner, prompter, log, uiNotifier, pickerWait);
         var notifier = adapters.Notifier;
 
         var store = new StateStore(paths.StateFile, log, notifier);
@@ -101,7 +104,7 @@ public sealed record TrayServices(
         Func<bool> obsRunning = () => runner.IsRunning(adapters.ObsProcessName);
         var obsSettings = new SakshiObsSettings(config, paths, os, store, prompter, log);
         var starter = new Starter(config, store, meetings, launcher, adapters.Capture, notifier, clock, log, connect, obsRunning,
-            obsSettings: obsSettings, obsStartTime: () => ObsStartTime(adapters.ObsProcessName));
+            obsSettings: obsSettings, obsStartTime: () => ObsStartTime(adapters.ObsProcessName), pickerWait: pickerWait);
         // null = OBS is not running (the Recorder clears the capture); a connect failure throws (the state is kept).
         var recorder = new Recorder(config, store, meetings, prompter, notifier, adapters.Trash, clock, log, queue,
             async ct => obsRunning() ? new ObsRecording(await connect(ct).ConfigureAwait(false)) : null,
@@ -121,6 +124,7 @@ public sealed record TrayServices(
             AppImage = OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 } image ? image : null,
             ObsRunning = obsRunning,
             CaptureRecovery = adapters.Recovery,
+            ObsSettings = obsSettings,
             ConnectObs = connect,
             DoctorProbes = DoctorProbes.Production(os, runner, FfmpegExecutable.Bundled()),
         };

@@ -76,9 +76,19 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         return await ObsClient.ConnectAsync("127.0.0.1", server.Port, null, TestContext.Current.CancellationToken);
     }
 
-    private PipeWireWindowCapture Capture(Func<bool> picker, SakshiConfig? cfg = null, Func<string, string?>? env = null) =>
+    private PipeWireWindowCapture Capture(Func<bool> picker, SakshiConfig? cfg = null, Func<string, string?>? env = null,
+        IPickerWait? wait = null, Func<bool>? visible = null) =>
         new(cfg ?? new SakshiConfig(), Paths, new FakeProcessRunner(), _notifier, new ListLog(_logLines),
-            (d, _) => { _delays.Add(d); return Task.CompletedTask; }, picker, env ?? Hyprland);
+            (d, _) => { _delays.Add(d); return Task.CompletedTask; }, picker, env ?? Hyprland, wait, visible ?? (() => false));
+
+    /// <summary>Records what the user would have been shown, in order.</summary>
+    private sealed class FakeWait : IPickerWait
+    {
+        public List<string> Seen { get; } = [];
+        public void Opening() => Seen.Add("opening");
+        public void Slow() => Seen.Add("slow");
+        public void Done() => Seen.Add("done");
+    }
 
     [Fact]
     public void InputKind_IsPipeWire() => Assert.Equal("pipewire-screen-capture-source", Capture(() => false).InputKind);
@@ -195,6 +205,22 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
     }
 
     [Fact]
+    public async Task The_token_is_taken_from_the_current_collections_file_even_when_user_ini_still_names_another()
+    {
+        // Right after OBS switched to "Main", user.ini can still name the collection it left.
+        File.WriteAllText(Path.Combine(_root, "obs", "user.ini"), "[Basic]\nSceneCollectionFile=Theirs.json\nSceneCollection=Theirs\n");
+        var theirs = Path.Combine(_root, "obs", "basic", "scenes", "Theirs.json");
+        const string theirsText = """{"name":"Theirs","sources":[{"id":"pipewire-screen-capture-source","name":"X","settings":{"RestoreToken":"theirs"}}]}""";
+        File.WriteAllText(theirs, theirsText);
+        await using var obs = await Connect();
+
+        await Capture(() => false).RepickAsync(obs, "Scene", "Src", TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("RestoreToken\":\"abc", File.ReadAllText(SceneFile).Replace(" ", ""));
+        Assert.Equal(theirsText, File.ReadAllText(theirs));   // the other collection keeps its window
+    }
+
+    [Fact]
     public async Task CreateFails_FallsBackToSwitching()
     {
         _createFails = true;
@@ -205,14 +231,31 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
     }
 
     [Fact]
-    public async Task PickerNeverAppears_CarriesOnAfterFortyPolls()
+    public async Task PickerNeverAppears_CarriesOnAfterTwentySeconds()
     {
         var polls = 0;
+        var wait = new FakeWait();
         await using var obs = await Connect();
-        var ok = await Capture(() => { polls++; return false; }).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
+        var ok = await Capture(() => { polls++; return false; }, wait: wait).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
         Assert.True(ok);
-        Assert.Equal(40, polls);
+        Assert.Equal(81, polls);   // every 250 ms for 20 s
         Assert.Contains("picker never appeared, continuing with whatever OBS captures", _logLines);
+        Assert.Equal(["opening", "slow", "done"], wait.Seen);   // "slow" after 10 s
+    }
+
+    [Fact]
+    public async Task The_sign_goes_as_soon_as_the_pickers_overlay_shows()
+    {
+        var running = 0;
+        var visibleChecks = 0;
+        var wait = new FakeWait();
+        await using var obs = await Connect();
+        // Starts on the 3rd look, shows on the 2nd check after that, closes (the user chose) after 8 more.
+        await Capture(() => ++running is >= 3 and < 13, wait: wait, visible: () => ++visibleChecks >= 2)
+            .SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
+        Assert.Equal(["opening", "done", "done"], wait.Seen);
+        Assert.Equal(2, visibleChecks);   // no more looking once it showed
+        Assert.Empty(_notifier.Sent);     // the sign replaces the notification
     }
 
     [Fact]
@@ -222,8 +265,8 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         await using var obs = await Connect();
         var ok = await Capture(() => { polls++; return true; }).SelectWindowAsync(obs, "Scene", "Src", false, TestContext.Current.CancellationToken);
         Assert.True(ok);
-        Assert.Equal(1 + 1 + 600, polls); // seen on the first check, then once per 300 ms delay, plus the final check
-        Assert.Equal(600, _delays.Count(d => d == TimeSpan.FromMilliseconds(300)));
+        Assert.Equal(1 + 720 + 1, polls); // seen on the first check, then once per 250 ms for 3 min
+        Assert.Equal(720, _delays.Count(d => d == TimeSpan.FromMilliseconds(250)));
         Assert.Contains("picker still open after 3 min; carrying on", _logLines);
     }
 

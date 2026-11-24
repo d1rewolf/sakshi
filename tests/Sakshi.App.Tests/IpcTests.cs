@@ -187,6 +187,16 @@ public sealed class IpcTests : IDisposable
     }
 
     [Fact]
+    public async Task IsRunning_tells_whether_a_tray_holds_the_lock()
+    {
+        Assert.False(TrayInstance.IsRunning(StateDir));
+        await using (var tray = TrayInstance.TryAcquire(StateDir, _ => null, TmpRoot))
+            Assert.True(TrayInstance.IsRunning(StateDir));
+        Assert.False(TrayInstance.IsRunning(StateDir));
+        Assert.NotNull(TrayInstance.TryAcquire(StateDir, _ => null, TmpRoot));   // asking did not take the lock
+    }
+
+    [Fact]
     public async Task TrayInstance_RemovesStaleSocket_AndDeletesItOnDispose()
     {
         if (OperatingSystem.IsWindows()) Assert.Skip("a plain file at the socket path behaves differently on Windows");

@@ -43,6 +43,29 @@ public static class SakshiObsProfile
     }
 
     /// <summary>
+    /// The file of the scene collection called <paramref name="name"/>: the one whose "name" it is (OBS names the file
+    /// after the collection, but not always exactly). Null when there is none.
+    /// </summary>
+    public static string? CollectionFileOf(string obsConfigDir, string name)
+    {
+        var dir = Path.Combine(obsConfigDir, "basic", "scenes");
+        if (!Directory.Exists(dir)) return null;
+        foreach (var file in Directory.GetFiles(dir, "*.json"))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && doc.RootElement.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String
+                    && n.GetString() == name)
+                    return file;
+            }
+            catch (Exception e) when (e is System.Text.Json.JsonException or IOException or UnauthorizedAccessException) { }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Writes Sakshi's settings into its profile, creating the profile's folder when missing. The audio format is
     /// copied from <paramref name="userProfile"/> (the profile OBS is on), so switching never asks for a restart.
     /// </summary>

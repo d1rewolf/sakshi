@@ -35,6 +35,15 @@ public sealed class StatusTests
     }
 
     [Fact]
+    public void A_recording_without_a_tray_is_over_and_not_shown()
+    {
+        // Sakshi and OBS were stopped mid-recording: the state still says recording until the tray next starts one.
+        var state = WithCapture(new Capture(CapturePhase.Recording, Now.AddSeconds(-125)));
+        Assert.Equal("idle", StatusReport.Compute(state, Now, false, trayRunning: false).State);
+        Assert.Equal("idle", StatusReport.Compute(WithCapture(new Capture(CapturePhase.Starting)), Now, false, trayRunning: false).State);
+    }
+
+    [Fact]
     public void Status_Recording_OverTenMinutes()
     {
         var s = StatusReport.Compute(WithCapture(new Capture(CapturePhase.Recording, Now.AddSeconds(-3601))), Now, false);

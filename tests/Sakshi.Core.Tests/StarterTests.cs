@@ -17,8 +17,9 @@ public sealed class StarterTests : IAsyncDisposable
         public void Info(string message) => Lines.Add(message);
     }
 
-    private sealed class FakeCapture(Func<bool> onSelect) : IWindowCapture
+    private sealed class FakeCapture(Func<bool> onSelect, bool systemPicker = false) : IWindowCapture
     {
+        public bool OpensSystemPicker => systemPicker;
         public int Calls { get; private set; }
         public bool? LastSourceJustCreated { get; private set; }
         public string InputKind => "test-capture-kind";
@@ -128,6 +129,30 @@ public sealed class StarterTests : IAsyncDisposable
     }
 
     private string[] Types() { lock (_calls) return _calls.Select(c => c.Type).ToArray(); }
+
+    private sealed class FakeWait : IPickerWait
+    {
+        public List<string> Seen { get; } = [];
+        public void Opening() => Seen.Add("opening");
+        public void Slow() => Seen.Add("slow");
+        public void Done() => Seen.Add("done");
+    }
+
+    [Fact]
+    public async Task A_system_picker_is_announced_while_OBS_starts_and_the_sign_always_goes()
+    {
+        var wait = new FakeWait();
+        var server = new FakeObsServer(Handle);
+        _servers.Add(server);
+        var capture = new FakeCapture(() => false, systemPicker: true);   // the user picks nothing: the start fails
+        var starter = new Starter(_config, _store, new MeetingStore(_config.MeetingsDir, Path.Combine(_root, "archive"), _log),
+            _launcher, capture, _notifier, _clock, _log, ct => ObsClient.ConnectAsync("127.0.0.1", server.Port, null, ct),
+            () => false, (_, _) => Task.CompletedTask, pickerWait: wait);
+
+        Assert.Equal(1, await starter.StartAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("opening", wait.Seen.First());   // before OBS was started
+        Assert.Equal("done", wait.Seen.Last());
+    }
 
     /// <summary>A Starter that records on Sakshi's own OBS profile (OBS is already on it here).</summary>
     private Starter OwnProfileStarter(FakeCapture capture)

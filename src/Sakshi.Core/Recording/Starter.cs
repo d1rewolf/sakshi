@@ -26,7 +26,8 @@ public sealed class Starter(
     Func<bool> obsRunning,
     Func<TimeSpan, CancellationToken, Task>? delay = null,
     SakshiObsSettings? obsSettings = null,
-    Func<DateTimeOffset?>? obsStartTime = null)
+    Func<DateTimeOffset?>? obsStartTime = null,
+    IPickerWait? pickerWait = null)
 {
     private sealed class StartFailed(string message) : Exception(message);
 
@@ -55,6 +56,19 @@ public sealed class Starter(
                 ? e.Message
                 : $"Could not start recording: {e.Message} (see sakshi.log)");
         }
+        finally
+        {
+            pickerWait?.Done();
+        }
+    }
+
+    /// <summary>
+    /// The system's picker comes only after OBS starts and Sakshi switches it, seconds later: say so from then on. Not
+    /// while Sakshi may still ask whether to switch an OBS the user had open (the sign would cover the question).
+    /// </summary>
+    private void PickerOnItsWay()
+    {
+        if (capture.OpensSystemPicker) pickerWait?.Opening();
     }
 
     private async Task<int> RunAsync(CancellationToken ct, Action markStarting, Action markIdle)
@@ -86,6 +100,7 @@ public sealed class Starter(
         }
 
         var wasRunning = obsRunning();
+        if (!wasRunning) PickerOnItsWay();
         await launcher.EnsureRunningAsync(ct);
         if (!wasRunning) store.Update(s => s with { ObsLaunched = obsStartTime?.Invoke() });
         await using var obs = await connect(ct);
@@ -105,6 +120,7 @@ public sealed class Starter(
         var ours = store.Load().ObsLaunched is { } launched && obsStartTime?.Invoke() is { } running
             && (running - launched).Duration() < TimeSpan.FromSeconds(1);
         if (!await obsSettings.EnterAsync(obs, ask: wasRunning && !ours, ct)) return 0;
+        PickerOnItsWay();
         try
         {
             return await RecordAsync(obs, ct, markStarting, markIdle);

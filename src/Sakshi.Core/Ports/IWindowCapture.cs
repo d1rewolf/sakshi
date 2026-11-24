@@ -5,6 +5,12 @@ namespace Sakshi.Core.Ports;
 /// <summary>The platform's way of letting the user pick which window or screen OBS captures.</summary>
 public interface IWindowCapture
 {
+    /// <summary>
+    /// Whether a recording's start opens the system's own window picker (Hyprland's), which is slow to appear, so the
+    /// Starter shows <see cref="IPickerWait"/> from the start. False where Sakshi asks in its own, quick window.
+    /// </summary>
+    bool OpensSystemPicker => false;
+
     /// <summary>The OBS input kind that captures a window on this platform.</summary>
     string InputKind { get; }
 

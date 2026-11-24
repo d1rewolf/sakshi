@@ -13,11 +13,15 @@ public sealed record Status(string State, string Tooltip, string Elapsed)
 /// <summary>Pure view of the state; it never clears stale entries (the tray does that).</summary>
 public static class StatusReport
 {
-    public static Status Compute(SakshiState s, DateTimeOffset now, bool lockHeld)
+    /// <param name="trayRunning">False when no tray runs: a recording or start it was in the middle of is over (Sakshi or
+    /// the computer stopped), so it is not shown as one; the tray clears it when it next starts one.</param>
+    public static Status Compute(SakshiState s, DateTimeOffset now, bool lockHeld, bool trayRunning = true)
     {
         var capture = s.Capture;
         switch (capture.Phase)
         {
+            case CapturePhase.Starting or CapturePhase.Recording when !trayRunning:
+                break;
             case CapturePhase.Starting:
                 return new Status("starting", "Pick the window to record…", Elapsed(capture.Started, now));
             case CapturePhase.Naming:

@@ -92,6 +92,20 @@ public sealed class TrayInstance : IAsyncDisposable
         }
     }
 
+    /// <summary>Whether a tray holds the lock in <paramref name="stateDir"/> (without taking it or creating anything).</summary>
+    public static bool IsRunning(string stateDir)
+    {
+        try
+        {
+            using var probe = new FileStream(Path.Combine(stateDir, "tray.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+        catch (IOException) { return true; }   // held: a tray runs
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _lock, null) is { } l)

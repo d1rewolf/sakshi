@@ -26,7 +26,7 @@ public sealed record PlatformAdapters(
     /// <paramref name="uiNotifier"/> is the Windows toast notifier, which lives in the App project.
     /// </summary>
     public static PlatformAdapters Create(HostOs os, SakshiConfig config, SakshiPaths paths, IProcessRunner runner,
-        IPrompter prompter, ILog log, INotifier? uiNotifier = null)
+        IPrompter prompter, ILog log, INotifier? uiNotifier = null, IPickerWait? pickerWait = null)
     {
         switch (os)
         {
@@ -55,7 +55,7 @@ public sealed record PlatformAdapters(
             {
                 var notifier = new SafeNotifier(new NotifySendNotifier(runner, log), log);
                 var install = new LinuxObsInstall(runner);
-                var capture = new PipeWireWindowCapture(config, paths, runner, notifier, log, Task.Delay);
+                var capture = new PipeWireWindowCapture(config, paths, runner, notifier, log, Task.Delay, pickerWait: pickerWait);
                 return new PlatformAdapters(new ObsLauncher(config, paths, install, runner, log), capture,
                     notifier, new GioTrash(runner), install.ProcessName,
                     CreateAutostart(os))
