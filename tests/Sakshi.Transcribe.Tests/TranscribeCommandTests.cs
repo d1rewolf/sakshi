@@ -109,7 +109,7 @@ public class TranscribeCommandTests : IDisposable
             ArgumentList = { "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", m4a },
             RedirectStandardOutput = true,
         })!;
-        var streams = (await probe.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken)).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var streams = (await probe.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken)).Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
         await probe.WaitForExitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(["audio"], streams);
     }
