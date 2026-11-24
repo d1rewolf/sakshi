@@ -21,16 +21,18 @@ public sealed class LiveWhisperNet : ILiveWhisper, IDisposable
 
     /// <summary>
     /// Whisper always works on 30 s of sound, however short the piece, unless told otherwise; the live pieces are a few
-    /// seconds, so a second processor looks at only <see cref="ShortSeconds"/> (an audio context of 256: 20 ms each).
-    /// Measured on the base model: under half the work per second of meeting of 5 s pieces with the full 30 s.
+    /// seconds, so a second processor looks at only <see cref="ShortSeconds"/> (an audio context of 384: 20 ms each).
+    /// Measured on the base model over a minute of speech: about a fifth of the work of 5 s pieces with the full 30 s.
+    /// A context of 256 was a little cheaper still, but on a recorded meeting it heard one sentence twice.
     /// </summary>
-    internal const double ShortSeconds = 5.12;
+    internal const double ShortSeconds = 7.68;
+    private const int ShortContext = 384;
 
     public LiveWhisperNet(string modelPath, int threads)
     {
         _factory = WhisperFactory.FromPath(modelPath);
         _processor = Builder(threads).Build();
-        _short = Builder(threads).WithAudioContextSize(256).Build();
+        _short = Builder(threads).WithAudioContextSize(ShortContext).Build();
     }
 
     private WhisperProcessorBuilder Builder(int threads) => _factory.CreateBuilder()
