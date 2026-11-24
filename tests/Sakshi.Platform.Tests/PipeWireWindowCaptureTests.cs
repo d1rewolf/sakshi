@@ -433,6 +433,7 @@ public sealed class PipeWireWindowCaptureTests : IDisposable
         Assert.SkipWhen(OperatingSystem.IsLinux(), "Linux scans /proc instead of asking the runner");
         var runner = new FakeProcessRunner();
         runner.Running.Add("hyprland-preview-share-picker");
+        _zeroSizePolls = 0;   // the user picked: the window has its size
         var polls = 0;
         var c = new PipeWireWindowCapture(new SakshiConfig(), Paths, runner, _notifier, new ListLog(_logLines),
             (_, _) => { if (++polls > 2) runner.Running.Clear(); return Task.CompletedTask; },
