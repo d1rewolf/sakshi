@@ -88,9 +88,9 @@ everything so far on the clipboard.
   stops there. The live text is a preview: the
   full transcript, which is more accurate and has the screen pictures, is still
   made afterwards in `meeting.md`.
-- It needs OBS to record as **Hybrid MP4** or **MKV** (OBS: Settings → Output →
-  Recording Format), because a plain MP4 cannot be read until it is finished.
-  The window tells you if OBS is set to plain MP4.
+- It needs OBS to record as Hybrid MP4 or MKV (`recordFormat`, Hybrid MP4
+  unless you change it), because a plain MP4 cannot be read until it is
+  finished. The window tells you if the format is plain MP4.
 - The speech recognition uses at most half of your computer's processor cores,
   so the call stays smooth.
 
@@ -215,10 +215,40 @@ changing it. The settings people change most:
 | `liveTranscript` | Open the live transcript by itself when a recording starts | `false` |
 | `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 
+| `recordFps` | Frames per second of the recording | `15` |
+| `recordMaxWidth`, `recordMaxHeight` | The largest recording; a smaller window is recorded at its own size | `1920`, `1080` |
+| `recordFormat` | OBS's file format (`hybrid_mp4`, `mkv`, …); the live transcript needs one it can read while recording | `hybrid_mp4` |
+| `recordEncoder` | The video encoder: `x264` (the processor), `nvenc` (NVIDIA), `amd`, `qsv` (Intel), `apple_h264`, or any OBS encoder name. Choose only one your computer has: OBS cannot record with a missing one. Blank: Apple's on a Mac, `x264` elsewhere | `""` |
+| `recordFolder` | Where OBS writes the recording before Sakshi moves it; blank for OBS's usual folder | `""` |
 | `obsWsRequirePassword` | Make OBS's remote control ask for a password (see below); `false` leaves OBS's own setting alone | `true` |
 
 The other settings (OBS connection details, the share picker on Linux) rarely
 need changing.
+
+### Sakshi's own OBS settings
+
+Sakshi records with its own OBS profile and scene collection, both called
+"Sakshi", so your own OBS setup is never changed. The `record…` settings above
+go into Sakshi's profile. When Sakshi starts OBS itself, it switches OBS to
+Sakshi's settings for the recording and back to yours when it stops. If you
+already had OBS open, Sakshi asks first, and you can say no. While OBS is
+streaming, Sakshi cannot switch it and does not record.
+
+Sakshi's profile saves a full picture (a keyframe) every 2 seconds. The live
+transcript can only read the recording up to the last one, so this is what
+keeps it a few seconds behind; OBS's own default was every 250 frames.
+
+The recording is the size of the window you picked (scaled down to
+`recordMaxWidth` × `recordMaxHeight` if it is bigger), so there are no black
+bars. If you change the window's shape during the recording, the picture keeps
+its starting size and the window is fitted inside it, with bars where the
+shapes differ.
+
+Sakshi's scene has your microphone and, on Windows and Linux, your computer's
+sound (the other people in the meeting), both on the system's default devices.
+Change them in OBS while it is on the Sakshi scene collection if you need
+others. `obsScene` and `obsSource` name the scene and window source inside
+Sakshi's collection.
 
 Sakshi controls OBS through OBS's remote control (its WebSocket server). OBS
 cannot limit that to your own computer: anyone on the same network can reach

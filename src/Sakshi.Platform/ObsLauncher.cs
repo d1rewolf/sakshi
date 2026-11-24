@@ -27,6 +27,7 @@ public sealed class ObsLauncher(
         EnsureServerEnabledInConfig(running);
         if (!running)
         {
+            PrepareSakshiProfile();
             log.Info("launching OBS");
             var extra = config.ObsLaunchArgs.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             var launch = await install.LaunchAsync(extra, ct).ConfigureAwait(false);
@@ -38,6 +39,31 @@ public sealed class ObsLauncher(
             await _delay(TimeSpan.FromMilliseconds(500), ct).ConfigureAwait(false);
         }
         throw new InvalidOperationException(NotAnswering(config.ObsWsPort));
+    }
+
+    /// <summary>
+    /// OBS lists only the profiles it finds when it starts, so Sakshi's is written before OBS starts; switching to it
+    /// later needs nothing from OBS but the switch. A failure only means OBS makes the profile itself later.
+    /// </summary>
+    private void PrepareSakshiProfile()
+    {
+        var os = OperatingSystem.IsWindows() ? HostOs.Windows : OperatingSystem.IsMacOS() ? HostOs.MacOS : HostOs.Linux;
+        try { SakshiObsProfile.Write(paths.ObsConfigDir, config, os, LastProfile()); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            log.Info($"could not write Sakshi's OBS profile ({e.Message}); OBS will make it when Sakshi first switches");
+        }
+    }
+
+    /// <summary>The profile OBS will open on: its user settings (global.ini before OBS 31) remember the last one.</summary>
+    private string? LastProfile()
+    {
+        foreach (var file in new[] { "user.ini", "global.ini" })
+        {
+            var path = Path.Combine(paths.ObsConfigDir, file);
+            if (File.Exists(path) && IniText.Get(File.ReadAllText(path), "Basic", "Profile") is { } name) return name;
+        }
+        return null;
     }
 
     /// <summary>

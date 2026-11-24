@@ -250,6 +250,32 @@ public sealed class StopTests : IDisposable
     }
 
     [Fact]
+    public async Task Once_OBS_has_stopped_its_settings_are_handed_back_even_if_that_fails()
+    {
+        var video = _f.MkVideo(Path.Combine(_f.Rec, "obs.mp4"));
+        _f.Obs.OutputPath = video;
+        var handedBack = 0;
+        _f.AfterObsStopped = _ => { handedBack++; throw new InvalidOperationException("OBS went away"); };
+
+        Assert.Equal(0, await Stop("direct"));
+
+        Assert.Equal(1, handedBack);
+        Assert.Equal(1, _f.Stored("direct"));   // the recording is stored all the same
+    }
+
+    [Fact]
+    public async Task A_recording_stopped_in_OBS_itself_still_hands_OBS_back()
+    {
+        _f.Obs.Recording = false;
+        var handedBack = 0;
+        _f.AfterObsStopped = _ => { handedBack++; return Task.CompletedTask; };
+
+        await Stop("direct");
+
+        Assert.Equal(1, handedBack);
+    }
+
+    [Fact]
     public async Task Stop_ObsReportsAPath_UsesIt()
     {
         var video = _f.MkVideo(Path.Combine(_f.Rec, "obs.mp4"));

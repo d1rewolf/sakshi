@@ -9,7 +9,11 @@ public sealed record SakshiConfig
     public string ObsScene { get; init; } = "Scene";
     public string ObsSource { get; init; } = "Screen Capture (PipeWire)";
     public bool ObsReselectWindow { get; init; } = true;
-    public string ObsLaunchArgs { get; init; } = "--minimize-to-tray --disable-shutdown-check";
+    /// <summary>
+    /// How Sakshi starts OBS: in the tray, without the questions that would stop it before its remote control opens
+    /// (an update offer, missing files). OBS still asks them when the user starts it.
+    /// </summary>
+    public string ObsLaunchArgs { get; init; } = "--minimize-to-tray --disable-updater --disable-missing-files-check";
     public string ObsWsHost { get; init; } = "127.0.0.1";
     public int ObsWsPort { get; init; } = 4455;
     public string ObsWsPassword { get; init; } = "";
@@ -43,6 +47,18 @@ public sealed record SakshiConfig
     public string PickerDefaultPage { get; init; } = "windows";
     /// <summary>The key that starts or stops a recording, held by the tray on Windows; blank for none.</summary>
     public string Shortcut { get; init; } = "Ctrl+Alt+R";
+    // OBS settings for Sakshi's own OBS profile (never the user's). See SakshiObsProfile.
+    /// <summary>Frames per second: 15 is plenty for slides and faces, and half OBS's usual work.</summary>
+    public int RecordFps { get; init; } = 15;
+    /// <summary>The largest recording: a window is recorded at its own size, a bigger one scaled down to fit.</summary>
+    public int RecordMaxWidth { get; init; } = 1920;
+    public int RecordMaxHeight { get; init; } = 1080;
+    /// <summary>OBS's file format; hybrid MP4 can be read while OBS is still writing it (the live transcript).</summary>
+    public string RecordFormat { get; init; } = "hybrid_mp4";
+    /// <summary>OBS's encoder name ("x264", "nvenc", "amd", "qsv", "apple_h264"); blank lets Sakshi choose.</summary>
+    public string RecordEncoder { get; init; } = "";
+    /// <summary>Where OBS writes the recording before Sakshi moves it; blank for OBS's usual folder.</summary>
+    public string RecordFolder { get; init; } = "";
     /// <summary>Open the live transcript window by itself when a recording starts.</summary>
     public bool LiveTranscript { get; init; }
 

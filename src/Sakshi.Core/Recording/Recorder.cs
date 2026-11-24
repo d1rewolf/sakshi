@@ -38,7 +38,8 @@ public sealed class Recorder(
     ILog log,
     TranscriptionQueue queue,
     Func<CancellationToken, Task<IObs?>> connectObs,
-    Func<TimeSpan, CancellationToken, Task>? delay = null)
+    Func<TimeSpan, CancellationToken, Task>? delay = null,
+    Func<CancellationToken, Task>? afterObsStopped = null)
 {
     private static readonly TimeSpan RecentWindow = TimeSpan.FromMinutes(10);
 
@@ -133,6 +134,15 @@ public sealed class Recorder(
 
     private readonly record struct ObsStop(string? Video, DateTimeOffset At, int? Exit);
 
+    /// <summary>Whatever follows a stopped recording in OBS (its own settings back); it never stops the store.</summary>
+    private async Task AfterObsStoppedAsync()
+    {
+        if (afterObsStopped is null) return;
+        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        try { await afterObsStopped(limit.Token); }
+        catch (Exception e) { log.Info($"after the recording: {e.Message}"); }
+    }
+
     private async Task<ObsStop> StopObsAsync(CancellationToken ct)
     {
         IObs? obs;
@@ -166,6 +176,7 @@ public sealed class Recorder(
             if (!recording)
             {
                 ClearCapture();
+                await AfterObsStoppedAsync();   // stopped in OBS itself, say: its settings still go back
                 notifier.Notify("Not recording", "OBS has no active recording.", Urgency.Low);
                 return new(null, default, 0);
             }
@@ -200,6 +211,7 @@ public sealed class Recorder(
             if (video is null || !File.Exists(video))
             {
                 ClearCapture();
+                await AfterObsStoppedAsync();
                 return new(null, default, Die(
                     $"Recording stopped but no file was found. Check OBS's recording folder ({(string.IsNullOrEmpty(recDir) ? "unknown" : recDir)})."));
             }
@@ -208,6 +220,7 @@ public sealed class Recorder(
             // A fresh capture: a Name, Frames or hand-off left by a crashed earlier stop must not carry over.
             store.Update(s => s with { Capture = new Capture(CapturePhase.Naming, Started: s.Capture.Started, Video: video, Stopped: stopped) });
             log.Info($"recording stopped: {video}");
+            await AfterObsStoppedAsync();
             return new(video, stopped, null);
         }
         finally

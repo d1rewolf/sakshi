@@ -99,10 +99,18 @@ public sealed record TrayServices(
             ct => ObsClient.ConnectAsync(config.ObsWsHost, config.ObsWsPort, launcher.Password(), ct);
 
         Func<bool> obsRunning = () => runner.IsRunning(adapters.ObsProcessName);
-        var starter = new Starter(config, store, meetings, launcher, adapters.Capture, notifier, clock, log, connect, obsRunning);
+        var obsSettings = new SakshiObsSettings(config, paths, os, store, prompter, log);
+        var starter = new Starter(config, store, meetings, launcher, adapters.Capture, notifier, clock, log, connect, obsRunning,
+            obsSettings: obsSettings, obsStartTime: () => ObsStartTime(adapters.ObsProcessName));
         // null = OBS is not running (the Recorder clears the capture); a connect failure throws (the state is kept).
         var recorder = new Recorder(config, store, meetings, prompter, notifier, adapters.Trash, clock, log, queue,
-            async ct => obsRunning() ? new ObsRecording(await connect(ct).ConfigureAwait(false)) : null);
+            async ct => obsRunning() ? new ObsRecording(await connect(ct).ConfigureAwait(false)) : null,
+            afterObsStopped: async ct =>
+            {
+                if (!obsRunning()) return;
+                await using var obs = await connect(ct).ConfigureAwait(false);
+                await obsSettings.LeaveAsync(obs, ct).ConfigureAwait(false);
+            });
 
         return new TrayServices(paths, os, home, config, store, recorder, starter, queue, prompter, notifier, log, clock, runner)
         {
@@ -116,6 +124,18 @@ public sealed record TrayServices(
             ConnectObs = connect,
             DoctorProbes = DoctorProbes.Production(os, runner, FfmpegExecutable.Bundled()),
         };
+    }
+
+    /// <summary>When the running OBS started; null when it is not running or the system will not say.</summary>
+    private static DateTimeOffset? ObsStartTime(string processName)
+    {
+        try
+        {
+            return System.Diagnostics.Process.GetProcessesByName(processName)
+                .Select(p => { try { return (DateTimeOffset?)p.StartTime; } catch (Exception) { return null; } })
+                .Where(t => t is not null).Min();
+        }
+        catch (Exception) { return null; }
     }
 
     private static SakshiConfig LoadConfig(SakshiPaths paths, HostOs os, string home, ILog log)

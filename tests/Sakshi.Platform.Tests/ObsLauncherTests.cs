@@ -156,7 +156,7 @@ public sealed class ObsLauncherTests : IDisposable
         await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
         var d = Assert.Single(_runner.Detached);
         Assert.Equal("uwsm-app", d.Item1);
-        Assert.Equal(["--", "obs", "--minimize-to-tray", "--disable-shutdown-check"], d.Item2);
+        Assert.Equal(["--", "obs", "--minimize-to-tray", "--disable-updater", "--disable-missing-files-check"], d.Item2);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public sealed class ObsLauncherTests : IDisposable
         await Launcher().EnsureRunningAsync(TestContext.Current.CancellationToken);
         var d = Assert.Single(_runner.Detached);
         Assert.Equal("obs", d.Item1);
-        Assert.Equal(["--minimize-to-tray", "--disable-shutdown-check"], d.Item2);
+        Assert.Equal(["--minimize-to-tray", "--disable-updater", "--disable-missing-files-check"], d.Item2);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class ObsLauncherTests : IDisposable
         Assert.Contains(_runner.Calls, c => c.File == "flatpak" && c.Args.SequenceEqual(["info", "com.obsproject.Studio"]));
         var d = Assert.Single(_runner.Detached);
         Assert.Equal("flatpak", d.Item1);
-        Assert.Equal(["run", "com.obsproject.Studio", "--minimize-to-tray", "--disable-shutdown-check"], d.Item2);
+        Assert.Equal(["run", "com.obsproject.Studio", "--minimize-to-tray", "--disable-updater", "--disable-missing-files-check"], d.Item2);
     }
 
     [Fact]

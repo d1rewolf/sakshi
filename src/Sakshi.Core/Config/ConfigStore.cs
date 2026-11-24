@@ -77,6 +77,7 @@ public static class ConfigStore
             MeetingsDir = Expand(merged.MeetingsDir, home),
             ArchiveDir = Expand(merged.ArchiveDir, home),
             Model = Expand(merged.Model, home),
+            RecordFolder = Expand(merged.RecordFolder, home),
             HandOffPath = merged.HandOffPath.Select(p => Expand(p, home)).ToList(),
         };
     }
@@ -100,6 +101,14 @@ public static class ConfigStore
           // "obsScene": "Scene",
           // "obsSource": "{obsSource}",
           // "pickerPriorityRegex": "zoom|teams|meet\\.google|webex|gotomeeting",
+
+          // OBS settings for Sakshi's own OBS profile (yours is never changed):
+          // "recordFps": 15,
+          // "recordMaxWidth": 1920,
+          // "recordMaxHeight": 1080,
+          // "recordFormat": "hybrid_mp4",
+          // "recordEncoder": "",
+          // "recordFolder": "",
         }
 
         """;

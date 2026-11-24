@@ -79,6 +79,10 @@ public sealed class StarterTests : IAsyncDisposable
         {
             case "GetRecordStatus": if (_recordStatusThrows) throw new FormatException("kaboom"); return (true, new { outputActive = _recordingActive });
             case "SetCurrentProgramScene": return _sceneMissing ? (false, "no such scene") : (true, null);
+            case "GetProfileList": return (true, new { currentProfileName = "Sakshi", profiles = new[] { "Sakshi" } });
+            case "GetSceneCollectionList": return (true, new { currentSceneCollectionName = "Sakshi", sceneCollections = new[] { "Sakshi" } });
+            case "GetSceneItemId" when data.GetProperty("sourceName").GetString()!.StartsWith("Sakshi "):
+                return (false, "no such source");   // Sakshi's own sound sources: not there yet
             case "GetSceneItemId":
             {
                 _itemIdCalls++;
@@ -124,6 +128,48 @@ public sealed class StarterTests : IAsyncDisposable
     }
 
     private string[] Types() { lock (_calls) return _calls.Select(c => c.Type).ToArray(); }
+
+    /// <summary>A Starter that records on Sakshi's own OBS profile (OBS is already on it here).</summary>
+    private Starter OwnProfileStarter(FakeCapture capture)
+    {
+        var server = new FakeObsServer(Handle);
+        _servers.Add(server);
+        var paths = new Sakshi.Core.Paths.SakshiPaths(Path.Combine(_root, "c"), Path.Combine(_root, "s"), Path.Combine(_root, "d"), Path.Combine(_root, "obs"));
+        var settings = new SakshiObsSettings(_config, paths, Sakshi.Core.Paths.HostOs.Windows, _store, new FakePrompter(), _log,
+            (_, _) => Task.CompletedTask);
+        return new Starter(_config, _store, new MeetingStore(_config.MeetingsDir, Path.Combine(_root, "archive"), _log), _launcher,
+            capture, _notifier, _clock, _log, ct => ObsClient.ConnectAsync("127.0.0.1", server.Port, null, ct), () => true,
+            (_, _) => Task.CompletedTask, settings, () => null);
+    }
+
+    [Fact]
+    public async Task On_its_own_profile_the_recording_is_the_windows_size_with_a_microphone_and_the_computers_sound()
+    {
+        Assert.Equal(0, await OwnProfileStarter(new FakeCapture(() => true)).StartAsync(TestContext.Current.CancellationToken));
+
+        // The window is 1280×720 and the canvas was 1920×1080: the canvas becomes the window's size.
+        var video = _calls.Single(c => c.Type == "SetVideoSettings" && c.Data.TryGetProperty("baseWidth", out _)).Data;
+        Assert.Equal((1280, 720, 1280, 720), (video.GetProperty("baseWidth").GetInt32(), video.GetProperty("baseHeight").GetInt32(),
+            video.GetProperty("outputWidth").GetInt32(), video.GetProperty("outputHeight").GetInt32()));
+        var fit = _calls.Last(c => c.Type == "SetSceneItemTransform").Data.GetProperty("sceneItemTransform");
+        Assert.Equal(1280, fit.GetProperty("boundsWidth").GetInt32());
+
+        var inputs = _calls.Where(c => c.Type == "CreateInput").Select(c => (c.Data.GetProperty("inputName").GetString(), c.Data.GetProperty("inputKind").GetString())).ToList();
+        Assert.Contains(("Sakshi Microphone", "wasapi_input_capture"), inputs);
+        Assert.Contains(("Sakshi Desktop Audio", "wasapi_output_capture"), inputs);
+        Assert.Contains("StartRecord", Types());
+    }
+
+    [Fact]
+    public async Task On_its_own_profile_a_missing_scene_is_made()
+    {
+        _sceneMissing = true;
+        var starter = OwnProfileStarter(new FakeCapture(() => true));
+        _calls.Clear();
+        // The fake keeps saying the scene is missing; what matters is that Sakshi makes it rather than giving up.
+        await starter.StartAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(_calls, c => c.Type == "CreateScene" && c.Data.GetProperty("sceneName").GetString() == "Scene");
+    }
 
     [Fact]
     public async Task AlreadyRecordingAndObsRunning_NotifiesAndDoesNothing()

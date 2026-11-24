@@ -20,8 +20,8 @@ internal sealed class LiveTranscript : IAsyncDisposable
     internal const string EndedText =
         "The recording has stopped. If you save it, the full transcript, with screen pictures, will be in meeting.md when it is ready.";
     internal const string UnreadableText =
-        "Sakshi cannot read OBS's recording until it ends, because OBS records to plain MP4. In OBS, choose " +
-        "Settings → Output → Recording Format → Hybrid MP4 (or MKV); live transcripts work from the next recording. " +
+        "Sakshi cannot read OBS's recording until it ends, because OBS records to plain MP4. In Sakshi's config, set " +
+        "\"recordFormat\" to \"hybrid_mp4\" (or \"mkv\"); live transcripts work from the next recording. " +
         "The full transcript will still be made after this meeting.";
     internal const string NoModelText =
         "The speech model could not be downloaded; check the internet connection. " +

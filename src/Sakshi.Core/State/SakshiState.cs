@@ -28,7 +28,13 @@ public sealed record TranscriptionJob(
     int? Pid = null,
     DateTimeOffset? Started = null);
 
-public sealed record SakshiState(Capture Capture, ImmutableList<TranscriptionJob> Jobs)
+/// <summary>The user's own OBS profile and scene collection, to switch back to after Sakshi's recording.</summary>
+public sealed record ObsReturn(string Profile, string Collection);
+
+/// <param name="ObsLaunched">When the OBS that Sakshi started itself began (its process start time), so a later
+/// recording knows that OBS is Sakshi's and not one the user opened.</param>
+public sealed record SakshiState(Capture Capture, ImmutableList<TranscriptionJob> Jobs, ObsReturn? ObsReturn = null,
+    DateTimeOffset? ObsLaunched = null)
 {
     public static SakshiState Empty { get; } = new(Capture.Idle, ImmutableList<TranscriptionJob>.Empty);
 }

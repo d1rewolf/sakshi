@@ -41,6 +41,9 @@ public sealed class RecorderFixture : IDisposable
     /// <summary>Runs inside every Recorder delay, after it was recorded (to cancel mid-wait, say).</summary>
     public Action<TimeSpan>? OnDelay { get; set; }
 
+    /// <summary>What the Recorder runs once OBS has stopped (Sakshi's OBS settings handed back).</summary>
+    public Func<CancellationToken, Task>? AfterObsStopped { get; set; }
+
     public RecorderFixture()
     {
         Directory.CreateDirectory(Rec);
@@ -59,7 +62,8 @@ public sealed class RecorderFixture : IDisposable
         _queues.Add(queue);
         return new Recorder(Config, Store, new MeetingStore(Meetings, Config.EffectiveArchiveDir, log), Prompter, Notifier,
             Trash, Clock, log, queue, _ => ConnectFailure is not null ? throw ConnectFailure : Task.FromResult<IObs?>(ObsReachable ? Obs : null),
-            (d, ct) => { ct.ThrowIfCancellationRequested(); Delays.Add(d); OnDelay?.Invoke(d); return Task.CompletedTask; });
+            (d, ct) => { ct.ThrowIfCancellationRequested(); Delays.Add(d); OnDelay?.Invoke(d); return Task.CompletedTask; },
+            AfterObsStopped);
     }
 
     public string MkVideo(string path, string mtime = "2026-01-05 10:00")

@@ -24,7 +24,9 @@ public sealed class Starter(
     ILog log,
     Func<CancellationToken, Task<ObsClient>> connect,
     Func<bool> obsRunning,
-    Func<TimeSpan, CancellationToken, Task>? delay = null)
+    Func<TimeSpan, CancellationToken, Task>? delay = null,
+    SakshiObsSettings? obsSettings = null,
+    Func<DateTimeOffset?>? obsStartTime = null)
 {
     private sealed class StartFailed(string message) : Exception(message);
 
@@ -83,7 +85,9 @@ public sealed class Starter(
             log.Info($"housekeep: failed, carrying on ({e.Message})");
         }
 
+        var wasRunning = obsRunning();
         await launcher.EnsureRunningAsync(ct);
+        if (!wasRunning) store.Update(s => s with { ObsLaunched = obsStartTime?.Invoke() });
         await using var obs = await connect(ct);
 
         var status = await obs.RequestAsync("GetRecordStatus", null, ct);
@@ -95,14 +99,40 @@ public sealed class Starter(
             return 0;
         }
 
+        if (obsSettings is null) return await RecordAsync(obs, ct, markStarting, markIdle);
+
+        // An OBS the user opened themselves is switched to Sakshi's settings only if they agree.
+        var ours = store.Load().ObsLaunched is { } launched && obsStartTime?.Invoke() is { } running
+            && (running - launched).Duration() < TimeSpan.FromSeconds(1);
+        if (!await obsSettings.EnterAsync(obs, ask: wasRunning && !ours, ct)) return 0;
         try
         {
+            return await RecordAsync(obs, ct, markStarting, markIdle);
+        }
+        catch
+        {
+            await obsSettings.LeaveAsync(obs, CancellationToken.None);
+            throw;
+        }
+    }
+
+    private async Task<int> RecordAsync(ObsClient obs, CancellationToken ct, Action markStarting, Action markIdle)
+    {
+        try
+        {
+            await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = config.ObsScene }, ct);
+        }
+        catch (ObsRequestException) when (obsSettings is not null)
+        {
+            // Sakshi's own collection: a new one has OBS's default scene, named in the user's language.
+            await obs.RequestAsync("CreateScene", new { sceneName = config.ObsScene }, ct);
             await obs.RequestAsync("SetCurrentProgramScene", new { sceneName = config.ObsScene }, ct);
         }
         catch (ObsRequestException)
         {
             throw new StartFailed($"scene '{config.ObsScene}' not found in OBS");
         }
+        if (obsSettings is not null) await obsSettings.EnsureSceneAudioAsync(obs, config.ObsScene, ct);
 
         var itemId = await GetItemIdAsync(obs, ct);
         var justCreated = false;
@@ -176,6 +206,7 @@ public sealed class Starter(
             if (i < 39) await _delay(Poll, ct);
         }
         if (srcW <= 0 || srcH <= 0) throw new StartFailed("No window selected — recording not started.");
+        if (obsSettings is not null) (baseW, baseH) = await FitFrameAsync(obs, srcW, srcH, baseW, baseH, ct);
 
         try
         {
@@ -213,6 +244,27 @@ public sealed class Starter(
         markIdle();
         notifier.Notify("Recording started", $"{srcW}×{srcH} → {baseW}×{baseH}. Click the bar icon to stop.", Urgency.Low);
         return 0;
+    }
+
+    /// <summary>
+    /// Sakshi's profile only: records the window at its own size (scaled down to the configured maximum), so there
+    /// are no bars and nothing is enlarged. OBS allows it only while nothing is being output; else the frame stays.
+    /// </summary>
+    private async Task<(int Width, int Height)> FitFrameAsync(ObsClient obs, long srcW, long srcH, int baseW, int baseH, CancellationToken ct)
+    {
+        var (w, h) = SakshiObsProfile.Frame(srcW, srcH, config.RecordMaxWidth, config.RecordMaxHeight);
+        if ((w, h) == (baseW, baseH)) return (w, h);
+        try
+        {
+            await obs.RequestAsync("SetVideoSettings",
+                new { baseWidth = w, baseHeight = h, outputWidth = w, outputHeight = h }, ct);
+            return (w, h);
+        }
+        catch (ObsRequestException e)
+        {
+            log.Info($"could not size the recording to the window ({e.Message}); keeping {baseW}×{baseH}");
+            return (baseW, baseH);
+        }
     }
 
     private static double Num(JsonElement e, string name) =>
