@@ -95,33 +95,36 @@ The installers (`sakshi-win-Setup.exe`, `sakshi-osx-Setup.pkg`,
 A pushed `v*` tag publishes a release; running the workflow by hand only builds
 the installers, as downloads on the run. Both are in `docs/releasing.md`.
 
-## Install on Omarchy (from source)
+## Run a build from source on Omarchy
 
-Build into `~/.local/lib/sakshi-cs` from this directory (rerun after every change,
-then choose Quit in the tray menu and press the chord to start the new build):
+Publish into a folder of your choice, for example `~/.local/lib/sakshi`
+(rerun after every change, then choose Quit in the tray menu and start
+`sakshi` again):
 
 ```sh
 dotnet publish src/Sakshi.App -c Release -r linux-x64 --self-contained \
-  -p:PublishReadyToRun=true -o ~/.local/lib/sakshi-cs
+  -p:PublishReadyToRun=true -o ~/.local/lib/sakshi
 ```
 
 A build from source has no ffmpeg of its own, so install it (`sudo pacman -S ffmpeg`).
 Then wire it into the desktop:
 
-- `~/.local/bin/sakshi` is a link to `~/.local/lib/sakshi-cs/sakshi`.
-- `~/.local/bin/sakshi-share-picker` is a two-line script,
-  `exec ~/.local/lib/sakshi-cs/sakshi share-picker "$@"`, named as
-  `custom_picker_binary` in `~/.config/hypr/xdph.conf`
-  (then `systemctl --user restart xdg-desktop-portal-hyprland`).
-- `~/.config/hypr/bindings.lua` binds a key to `sakshi toggle`, and
-  `~/.config/hypr/autostart.lua` starts `sakshi` at login.
-- In `~/.config/omarchy/shell.json`, the `omarchy.tray` entry has `"pinned": ["Sakshi"]`,
-  so the icon sits in the bar rather than in the tray drawer.
+1. Link `~/.local/bin/sakshi` to `~/.local/lib/sakshi/sakshi`.
+2. Make `~/.local/bin/sakshi-share-picker` a two-line script,
+   `exec ~/.local/lib/sakshi/sakshi share-picker "$@"`, name it as
+   `custom_picker_binary` in `~/.config/hypr/xdph.conf`, then run
+   `systemctl --user restart xdg-desktop-portal-hyprland`.
+3. Bind a key to `sakshi toggle` in `~/.config/hypr/bindings.lua`, and start
+   `sakshi` at login from `~/.config/hypr/autostart.lua`.
+4. To keep the icon in the bar rather than in the tray drawer, add `"Sakshi"`
+   to the `pinned` list of the `omarchy.tray` entry in
+   `~/.config/omarchy/shell.json`.
 
 ## Status
 
-Sakshi is used daily on Omarchy. The macOS, Windows and Ubuntu versions are
-built and pass CI, but have had little use on real machines yet. The
+Sakshi has had the most use on Omarchy (Arch Linux with Hyprland). The macOS,
+Windows and Ubuntu versions are built and pass CI, but have had less use on
+real machines so far; bug reports are welcome. The
 installers are not signed, so Windows and macOS warn on first launch
 (`docs/install.md` explains what to do).
 

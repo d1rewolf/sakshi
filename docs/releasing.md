@@ -68,19 +68,19 @@ the tag (`gh release delete v0.1.0 --yes --cleanup-tag`), fix, and tag again.
 
 ## Pointing people to it
 
-Send `docs/install.md`, or the link to the Releases page. Nothing in the app
-contacts GitHub, so there is no token to hand out.
+Link to `docs/install.md` or the Releases page. Nothing in the app contacts
+GitHub, so updates are installed by downloading the new release.
 
 ## Not signed
 
 The builds are not signed or notarised, so Windows and macOS warn on first
 launch. `docs/install.md` explains how to get past that.
 
-## Guides to send with the installers
+## Guides as PDFs
 
 `packaging/make-guides.py` turns `docs/install.md` and `docs/user-guide.md`
 into one PDF per system (install steps for that system only, then the user
-guide), so each person gets their installer plus one PDF:
+guide), for anyone who wants the guide offline:
 
 ```sh
 uv run --with weasyprint==70.0 packaging/make-guides.py ~/Downloads/sakshi-guides
