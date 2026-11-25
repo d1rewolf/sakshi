@@ -191,9 +191,16 @@ just its name (Sakshi looks in your meetings folder and the archive):
 ```
 sakshi speakers weekly_standup                 list the voices
 sakshi speakers weekly_standup S3=Ben          name voice 3 Ben
-sakshi speakers weekly_standup S3=             take the name off again
+sakshi speakers weekly_standup S3=             take the name off this meeting
 sakshi speakers weekly_standup --accept        accept every guess (the ones with a ?)
 ```
+
+A guess can be wrong. Name the voice yourself (`S3=Cy`) or clear it (`S3=`).
+A guess never teaches Sakshi anything: only the names you give or accept do.
+
+`S3=` takes the name off this meeting only. It does not delete a voiceprint you
+taught Sakshi earlier; to remove a person's voiceprints, use
+`sakshi voices forget NAME` (see below).
 
 The list shows each voice with how long it spoke, one line it said, and the
 path of a 5-second sound clip. Play the clip to hear who it is. Naming a voice
@@ -213,17 +220,21 @@ Add them with:
 sakshi speakers --add weekly_standup
 ```
 
-This runs the transcription again, so it takes about as long as the first
-time. It needs the meeting's recording (or its `audio.wav`) to still be in the
+This runs the speech-to-text and the speaker steps again (it does not
+redo the screen pictures), so it takes a few minutes for an hour-long
+meeting. It needs the meeting's recording (or its `audio.wav`) to still be in the
 folder.
 
 ### The people Sakshi knows
 
 ```
 sakshi voices                    list the people, with their voiceprints and meetings
-sakshi voices rename Ben Benjamin    rename a person (meetings already written keep the old name until you label them again)
+sakshi voices rename Ben Benjamin    rename a person
 sakshi voices forget Ben         delete a person and all their voiceprints
 ```
+
+Meetings already written keep the old name after a rename until you label them
+again.
 
 ### Turning it off
 
@@ -245,6 +256,9 @@ It can be used to recognise that person, so treat it as personal data.
 - Sakshi keeps voiceprints in two places on your computer only: in the
   meeting's `speakers.json`, and in the voice library, `voices.json`:
 
+  Unless you have moved Sakshi's data folder (the `SAKSHI_DATA_DIR` or
+  `XDG_DATA_HOME` setting), the library is here:
+
   | System | Voice library |
   | --- | --- |
   | Linux | `~/.local/share/sakshi/voices/voices.json` |
@@ -254,6 +268,8 @@ It can be used to recognise that person, so treat it as personal data.
 - Nothing leaves your computer: no audio, transcript or voiceprint is sent
   anywhere. The two models are downloaded to your computer and do their work
   there.
+- Clearing a name with `S3=` does not delete a voiceprint you taught Sakshi
+  earlier.
 - To delete a person, run `sakshi voices forget NAME`. Their voiceprints leave
   the library. Meetings already written still show the name; the voiceprint in
   that meeting's `speakers.json` goes when you delete the meeting.

@@ -16,7 +16,7 @@ public static class SpeakerCount
                 !(s.ValueKind == JsonValueKind.Object && s.TryGetProperty("status", out var st)
                   && st.ValueKind == JsonValueKind.String && st.GetString() == "named"));
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        catch (Exception) // this must never break the notification
         {
             return 0;
         }
