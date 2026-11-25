@@ -83,7 +83,7 @@ public static partial class AddSpeakersCommand
         if (!hasWav)
         {
             stdout.WriteLine("==> Extracting audio");
-            var part = wav + ".part";
+            var part = Path.Combine(dir, "audio.part.wav"); // ffmpeg picks the format from the extension
             try
             {
                 await Ffmpeg.ExtractAudioAsync(recording!, part, ct);
@@ -122,10 +122,16 @@ public static partial class AddSpeakersCommand
                 (Path.Combine(dir, "meeting.md"), p => File.WriteAllText(p, md, new UTF8Encoding(false))),
             ]);
             var clips = Path.Combine(dir, "speakers");
-            if (Directory.Exists(clips)) Directory.Delete(clips, true);
-            if (Directory.Exists(Path.Combine(staging, "speakers")))
-                Directory.Move(Path.Combine(staging, "speakers"), clips);
+            var stagedClips = Path.Combine(staging, "speakers");
+            var oldClips = Path.Combine(dir, "speakers.old");
+            if (Directory.Exists(oldClips)) Directory.Delete(oldClips, true);
+            if (Directory.Exists(stagedClips))
+            {
+                if (Directory.Exists(clips)) Directory.Move(clips, oldClips);
+                Directory.Move(stagedClips, clips);
+            }
             File.Move(Path.Combine(staging, "speakers.json"), speakersPath, overwrite: true);
+            if (Directory.Exists(oldClips)) Directory.Delete(oldClips, true);
             stdout.WriteLine(
                 $"   found {outcome.Speakers} {(outcome.Speakers == 1 ? "speaker" : "speakers")} ({outcome.Suggested + outcome.Unknown} to name)");
         }

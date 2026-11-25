@@ -267,4 +267,32 @@ public sealed class AddSpeakersCommandTests : IDisposable
         Assert.Equal(1, SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Version);
         Assert.False(Directory.Exists(Path.Combine(dir, ".speakers-staging")));
     }
+
+    [Fact]
+    public void ExtractsAudioFromARecordingWithoutLeavingPartFiles()
+    {
+        Assert.SkipUnless(FfmpegExecutable.Available, "ffmpeg is not available");
+        var dir = Meeting("rec", audio: false);
+        var m4a = Path.Combine(dir, "rec.m4a");
+        var psi = new System.Diagnostics.ProcessStartInfo(FfmpegExecutable.Command)
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+        };
+        foreach (var a in new[] { "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", m4a })
+            psi.ArgumentList.Add(a);
+        using (var p = System.Diagnostics.Process.Start(psi)!)
+        {
+            p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            Assert.Equal(0, p.ExitCode);
+        }
+        var s = new FakeStep();
+        var r = Run(new FakeWhisper(), s, dir);
+        Assert.Equal(0, r.Code);
+        Assert.True(File.Exists(Path.Combine(dir, "audio.wav")));
+        Assert.Empty(Directory.GetFiles(dir, "*.part*"));
+        Assert.Equal(Path.Combine(dir, "audio.wav"), s.Calls.Single().Wav);
+        Assert.Equal("rec.m4a", s.Calls.Single().Source);
+    }
 }
