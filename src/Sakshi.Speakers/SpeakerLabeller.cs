@@ -14,9 +14,7 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
 
     private sealed record Speaker(string Id, float[] Raw, Suggestion? Suggestion);
 
-    /// <param name="meetingKey">The meeting as the voice library names it ("2026-11-20-Fri/steering"). Voiceprints
-    /// are only taught to the library when the user names a speaker, so labelling itself does not store it.</param>
-    public SpeakerOutcome Label(float[] samples, string outputDir, string meetingKey, IReadOnlyList<Segment> segments,
+    public SpeakerOutcome Label(float[] samples, string outputDir, IReadOnlyList<Segment> segments,
         string source, IReadOnlyList<FrameRecord>? frames, CancellationToken ct)
     {
         var none = new SpeakerOutcome(segments, 0, 0, 0);
@@ -33,12 +31,13 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
         ct.ThrowIfCancellationRequested();
 
         var mean = BackgroundMean();
-        var (speakerTurns, speakers) = JoinAndNumber(turns, prints, mean);
-        var suggestions = Suggest(speakers, mean);
-        speakers = speakers.Select((s, i) => s with { Suggestion = suggestions[i] }).ToList();
+        var (groupTurns, groups) = JoinPieces(turns, prints, mean);
+        var labelled = WordsToSpeakers(segments, groupTurns);
+        if (!Number(ref labelled, groupTurns, groups, out var speakerTurns, out var speakers)) return none;
         ct.ThrowIfCancellationRequested();
 
-        var labelled = WordsToSpeakers(segments, speakerTurns);
+        var suggestions = Suggest(speakers, mean);
+        speakers = speakers.Select((s, i) => s with { Suggestion = suggestions[i] }).ToList();
         var entries = speakers.Select(s => Entry(s, speakerTurns, labelled)).ToList();
         var labels = entries.ToDictionary(e => e.Id, e => e.Label);
         labelled = labelled.Select(s => s with { SpeakerLabel = labels[s.Speaker!] }).ToList();
@@ -89,9 +88,9 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
     }
 
     /// <summary>Gives each turn of a print-less piece to the printed piece of the nearest turn before it (after it,
-    /// for leading turns), joins printed pieces that sound alike, and numbers the speakers by their first turn.
-    /// A speaker's raw voiceprint is the mean of its pieces' raw prints.</summary>
-    private static (List<SpeakerTurn> Turns, List<Speaker> Speakers) JoinAndNumber(
+    /// for leading turns) and joins printed pieces that sound alike. Turns carry a provisional group id ("g0");
+    /// a group's raw voiceprint is the mean of its pieces' raw prints.</summary>
+    private static (List<SpeakerTurn> Turns, Dictionary<string, Speaker> Groups) JoinPieces(
         List<PieceTurn> turns, SortedDictionary<int, float[]> prints, float[] mean)
     {
         var owner = new int?[turns.Count];
@@ -113,18 +112,24 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
             SpeakerSettings.JoinThreshold);
         var groupOfPiece = pieces.Select((p, i) => (p, g: group[i])).ToDictionary(x => x.p, x => x.g);
 
-        var ids = new Dictionary<int, string>(); // group -> "Sn", in order of first turn
-        var speakerTurns = new List<SpeakerTurn>(turns.Count);
-        for (var i = 0; i < turns.Count; i++)
-        {
-            var g = groupOfPiece[owner[i]!.Value];
-            if (!ids.TryGetValue(g, out var id)) ids[g] = id = "S" + (ids.Count + 1);
-            speakerTurns.Add(new SpeakerTurn(turns[i].Start, turns[i].End, id));
-        }
+        var groupTurns = turns.Select((t, i) => new SpeakerTurn(t.Start, t.End, "g" + groupOfPiece[owner[i]!.Value])).ToList();
+        var groups = group.Distinct().ToDictionary(g => "g" + g, g => new Speaker("g" + g,
+            MeanOf(pieces.Where(p => groupOfPiece[p] == g).Select(p => prints[p]).ToList()), null));
+        return (groupTurns, groups);
+    }
 
-        var speakers = ids.Select(kv => new Speaker(kv.Value,
-            MeanOf(pieces.Where(p => groupOfPiece[p] == kv.Key).Select(p => prints[p]).ToList()), null)).ToList();
-        return (speakerTurns, speakers);
+    /// <summary>Numbers the groups S1, S2, … by first appearance in the final segments. A group left with no words
+    /// is dropped, with its turns. False when no group has any words.</summary>
+    private static bool Number(ref List<Segment> segments, List<SpeakerTurn> groupTurns, Dictionary<string, Speaker> groups,
+        out List<SpeakerTurn> turns, out List<Speaker> speakers)
+    {
+        var ids = new Dictionary<string, string>(); // group id -> "Sn"; insertion order is first appearance
+        foreach (var seg in segments)
+            if (seg.Speaker is { } g && !ids.ContainsKey(g)) ids[g] = "S" + (ids.Count + 1);
+        segments = segments.Select(s => s with { Speaker = s.Speaker is { } g ? ids[g] : null }).ToList();
+        turns = groupTurns.Where(t => ids.ContainsKey(t.Speaker)).Select(t => t with { Speaker = ids[t.Speaker] }).ToList();
+        speakers = ids.Select(kv => groups[kv.Key] with { Id = kv.Value }).ToList();
+        return ids.Count > 0;
     }
 
     private static float[] MeanOf(IReadOnlyList<float[]> vectors)

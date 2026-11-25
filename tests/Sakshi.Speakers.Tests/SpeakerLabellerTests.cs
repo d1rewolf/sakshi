@@ -69,7 +69,7 @@ public sealed class SpeakerLabellerTests : IDisposable
     private SpeakerOutcome Run(IDiarizer d, IVoiceprinter p, IReadOnlyList<Segment> segs, float[] audio,
         VoiceLibrary? lib = null, bool writable = false) =>
         new SpeakerLabeller(d, p, lib ?? VoiceLibrary.Load(Voices), writable)
-            .Label(audio, Out, "2026-11-20-Fri/steering", segs, "steering.mp4", Frames, CancellationToken.None);
+            .Label(audio, Out, segs, "steering.mp4", Frames, CancellationToken.None);
 
     private string SpeakersJson => Path.Combine(Out, "speakers.json");
 
@@ -259,14 +259,40 @@ public sealed class SpeakerLabellerTests : IDisposable
         var p = new FakePrinter(new() { [0] = V(0) });
         var labeller = new SpeakerLabeller(d, p, VoiceLibrary.Load(Voices), false);
         Assert.Throws<OperationCanceledException>(() =>
-            labeller.Label(Audio(10), Out, "k", [Seg(0, 10)], "s", null, new CancellationToken(true)));
+            labeller.Label(Audio(10), Out, [Seg(0, 10)], "s", null, new CancellationToken(true)));
     }
-}
 
-public class SpeakerStepTests
-{
-    [Theory]
-    [InlineData("/home/u/meetings/2026-11-20-Fri/steering", "2026-11-20-Fri/steering")]
-    [InlineData("/home/u/meetings/2026-11-20-Fri/steering/", "2026-11-20-Fri/steering")]
-    public void MeetingKeyIsTheLastTwoParts(string dir, string key) => Assert.Equal(key, SpeakerStep.MeetingKey(dir));
+    [Fact]
+    public void SpeakerWithoutWordsIsDropped()
+    {
+        // Piece 1 speaks in a stretch with no words: it is left out and the next speaker is S2, not S3.
+        var d = new FakeDiarizer(new PieceTurn(0, 10, 0), new PieceTurn(10, 14, 1), new PieceTurn(14, 24, 2));
+        var p = new FakePrinter(new() { [0] = V(0), [10] = V(1), [14] = V(2) });
+        var r = Run(d, p, [Seg(0, 10), Seg(14, 24)], Audio(24), VoiceLibrary.Load(Voices), writable: true);
+        Assert.Equal(2, r.Speakers);
+        Assert.Equal(2, r.Unknown);
+        Assert.Equal(["S1", "S2"], r.Segments.Select(s => s.Speaker));
+        Assert.Equal(["Speaker 1", "Speaker 2"], r.Segments.Select(s => s.SpeakerLabel));
+        var file = SpeakersFile.Read(SpeakersJson);
+        Assert.Equal(["S1", "S2"], file.Speakers.Select(s => s.Id));
+        Assert.Equal(V(2), file.Speakers[1].Voiceprint);
+        Assert.Equal(["S1.wav", "S2.wav"],
+            Directory.GetFiles(Path.Combine(Out, "speakers")).Select(Path.GetFileName).Order());
+        // The dropped piece's print still counts towards the background.
+        Assert.Equal(3, VoiceLibrary.Load(Voices).BackgroundSum.Count);
+    }
+
+    [Fact]
+    public void SpeakersAreNumberedByFirstWords()
+    {
+        // Piece 0 has the first turn but says nothing until 20 s; piece 1 speaks first.
+        var d = new FakeDiarizer(new PieceTurn(0, 4, 0), new PieceTurn(4, 20, 1), new PieceTurn(20, 30, 0));
+        var p = new FakePrinter(new() { [20] = V(0), [4] = V(1) });
+        var r = Run(d, p, [Seg(4, 20), Seg(20, 30)], Audio(30));
+        Assert.Equal(["S1", "S2"], r.Segments.Select(s => s.Speaker));
+        var file = SpeakersFile.Read(SpeakersJson);
+        Assert.Equal(V(1), file.Speakers[0].Voiceprint);
+        Assert.Equal(V(0), file.Speakers[1].Voiceprint);
+        Assert.Equal(14, file.Speakers[1].Seconds, 3);
+    }
 }
