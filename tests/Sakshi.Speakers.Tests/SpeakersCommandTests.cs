@@ -37,7 +37,7 @@ public sealed class SpeakersCommandTests : IDisposable
         var o = new StringWriter();
         var e = new StringWriter();
         var code = SpeakersCommand.RunAsync(args, [Path.Combine(_root, "meetings")], _voices, o, e, Now).GetAwaiter().GetResult();
-        return (code, o.ToString(), e.ToString());
+        return (code, o.ToString().Replace("\r", ""), e.ToString().Replace("\r", ""));
     }
 
     private string Md => File.ReadAllText(Path.Combine(_dir, "meeting.md"));

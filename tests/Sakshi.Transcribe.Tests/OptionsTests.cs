@@ -31,7 +31,7 @@ public class OptionsTests
 
     [Fact] public void Usage_ListsTheSpeakerFlags() => Assert.Contains(
         "  --speakers / --no-speakers\n                          label who said what (default: the config's \"speakers\", on)",
-        TranscribeUsage.Text);
+        TranscribeUsage.Text.Replace("\r", ""));
 
     [Fact] public void Parse_Log() => Assert.Equal("t.log", P("--log", "t.log", "m.mp4").LogFile);
     [Fact] public void Parse_LogNeedsAValue() => Assert.Throws<UsageException>(() => P("m.mp4", "--log"));
