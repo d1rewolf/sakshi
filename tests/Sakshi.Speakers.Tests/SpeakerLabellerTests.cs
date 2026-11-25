@@ -50,7 +50,8 @@ public sealed class SpeakerLabellerTests : IDisposable
 
     private sealed class FakeDiarizer(params PieceTurn[] turns) : IDiarizer
     {
-        public IReadOnlyList<PieceTurn> Diarize(float[] samples, CancellationToken ct) => turns;
+        public int Calls { get; private set; }
+        public IReadOnlyList<PieceTurn> Diarize(float[] samples, CancellationToken ct) { Calls++; return turns; }
         public void Dispose() { }
     }
 
@@ -67,9 +68,9 @@ public sealed class SpeakerLabellerTests : IDisposable
     }
 
     private SpeakerOutcome Run(IDiarizer d, IVoiceprinter p, IReadOnlyList<Segment> segs, float[] audio,
-        VoiceLibrary? lib = null, bool writable = false) =>
+        VoiceLibrary? lib = null, bool writable = false, TextWriter? stdout = null) =>
         new SpeakerLabeller(d, p, lib ?? VoiceLibrary.Load(Voices), writable)
-            .Label(audio, Out, segs, "steering.mp4", Frames, CancellationToken.None);
+            .Label(audio, Out, segs, "steering.mp4", Frames, stdout ?? TextWriter.Null, CancellationToken.None);
 
     private string SpeakersJson => Path.Combine(Out, "speakers.json");
 
@@ -259,7 +260,7 @@ public sealed class SpeakerLabellerTests : IDisposable
         var p = new FakePrinter(new() { [0] = V(0) });
         var labeller = new SpeakerLabeller(d, p, VoiceLibrary.Load(Voices), false);
         Assert.Throws<OperationCanceledException>(() =>
-            labeller.Label(Audio(10), Out, [Seg(0, 10)], "s", null, new CancellationToken(true)));
+            labeller.Label(Audio(10), Out, [Seg(0, 10)], "s", null, TextWriter.Null, new CancellationToken(true)));
     }
 
     [Fact]
@@ -294,5 +295,62 @@ public sealed class SpeakerLabellerTests : IDisposable
         Assert.Equal(V(1), file.Speakers[0].Voiceprint);
         Assert.Equal(V(0), file.Speakers[1].Voiceprint);
         Assert.Equal(14, file.Speakers[1].Seconds, 3);
+    }
+
+    [Fact]
+    public void NoLabelsRemovesAnEarlierRunsOutput()
+    {
+        var p = new FakePrinter(new() { [0] = V(0), [10] = V(1) });
+        Segment[] segs = [Seg(0, 10), Seg(10, 20)];
+        Run(new FakeDiarizer(new PieceTurn(0, 10, 0), new PieceTurn(10, 20, 1)), p, segs, Audio(20));
+        var clips = Path.Combine(Out, "speakers");
+        Assert.True(File.Exists(SpeakersJson));
+        File.WriteAllText(Path.Combine(clips, "notes.txt"), "not ours");
+
+        var r = Run(new FakeDiarizer(), p, segs, Audio(20));
+        Assert.Equal(0, r.Speakers);
+        Assert.False(File.Exists(SpeakersJson));
+        Assert.Equal(["notes.txt"], Directory.GetFiles(clips).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void NoLabelsWithoutAnEarlierRunWritesNothing()
+    {
+        Run(new FakeDiarizer(), new FakePrinter([]), [Seg(0, 5)], Audio(5));
+        Assert.False(Directory.Exists(Out));
+    }
+
+    [Fact]
+    public void EmptyAudioMeansNoLabels()
+    {
+        var d = new FakeDiarizer(new PieceTurn(0, 10, 0));
+        var r = Run(d, new FakePrinter(new() { [0] = V(0) }), [Seg(0, 10)], []);
+        Assert.Equal(0, r.Speakers);
+        Assert.Equal(0, d.Calls);
+    }
+
+    [Fact]
+    public void LibrarySaveFailureIsAWarning()
+    {
+        Directory.CreateDirectory(Voices); // a folder where the file should be: loads as empty, cannot be saved
+        var output = new StringWriter();
+        var d = new FakeDiarizer(new PieceTurn(0, 10, 0));
+        var r = Run(d, new FakePrinter(new() { [0] = V(0) }), [Seg(0, 10)], Audio(10),
+            VoiceLibrary.Load(Voices), writable: true, stdout: output);
+        Assert.Equal(1, r.Speakers);
+        Assert.True(File.Exists(SpeakersJson));
+        Assert.StartsWith("Warning: voices not saved: ", output.ToString());
+        Assert.Single(output.ToString().TrimEnd().Split('\n'));
+    }
+
+    [Fact]
+    public void SampleIsTheLongestSegmentWithWords()
+    {
+        // The wordless 9 s note is longer, but the sample is the spoken segment.
+        var d = new FakeDiarizer(new PieceTurn(0, 12, 0));
+        var p = new FakePrinter(new() { [0] = V(0) });
+        Segment[] segs = [new Segment(T(0), T(9), " [Music]"), Seg(9, 12, "Hello there all.")];
+        Run(d, p, segs, Audio(12));
+        Assert.Equal("Hello there all.", SpeakersFile.Read(SpeakersJson).Speakers[0].Sample);
     }
 }

@@ -34,7 +34,7 @@ public sealed class SpeakerStep(string modelsDir, string voicesFile, int threads
             using var diarizer = new SherpaDiarizer(models.Segmentation, models.Embedding, threads);
             using var printer = new SherpaVoiceprinter(models.Embedding, threads);
             return new SpeakerLabeller(diarizer, printer, library, writable)
-                .Label(samples, outputDir, segments, source, frames, ct);
+                .Label(samples, outputDir, segments, source, frames, stdout, ct);
         }, ct);
     }
 }

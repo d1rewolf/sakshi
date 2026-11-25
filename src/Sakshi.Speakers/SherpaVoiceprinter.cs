@@ -39,7 +39,12 @@ public sealed class SherpaVoiceprinter : IVoiceprinter
         using var stream = _ex.CreateStream();
         foreach (var part in parts) stream.AcceptWaveform(Rate, part);
         stream.InputFinished();
-        return _ex.Compute(stream);
+        // Too little audio: sherpa is not ready below a few samples, and up to about 50 ms it is ready but returns
+        // NaN, which must never reach the library's background sum.
+        if (!_ex.IsReady(stream)) throw new ArgumentException("too little audio inside the given spans", nameof(spans));
+        var print = _ex.Compute(stream);
+        if (!print.All(float.IsFinite)) throw new ArgumentException("too little audio inside the given spans", nameof(spans));
+        return print;
     }
 
     public void Dispose() => _ex.Dispose();

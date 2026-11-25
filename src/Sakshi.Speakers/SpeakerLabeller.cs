@@ -15,25 +15,25 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
     private sealed record Speaker(string Id, float[] Raw, Suggestion? Suggestion);
 
     public SpeakerOutcome Label(float[] samples, string outputDir, IReadOnlyList<Segment> segments,
-        string source, IReadOnlyList<FrameRecord>? frames, CancellationToken ct)
+        string source, IReadOnlyList<FrameRecord>? frames, TextWriter stdout, CancellationToken ct)
     {
-        var none = new SpeakerOutcome(segments, 0, 0, 0);
         ct.ThrowIfCancellationRequested();
-        if (!segments.Any(s => s.Words.Count > 0)) return none;
+        if (samples.Length == 0 || !segments.Any(s => s.Words.Count > 0)) return NoLabels(segments, outputDir);
 
         var turns = diarizer.Diarize(samples, ct)
             .Where(t => t.End > t.Start).OrderBy(t => t.Start).ThenBy(t => t.End).ToList();
-        if (turns.Count == 0) return none;
+        if (turns.Count == 0) return NoLabels(segments, outputDir);
         ct.ThrowIfCancellationRequested();
 
         var prints = PiecePrints(samples, turns, ct);
-        if (prints.Count == 0) return none;
+        if (prints.Count == 0) return NoLabels(segments, outputDir);
         ct.ThrowIfCancellationRequested();
 
         var mean = BackgroundMean();
         var (groupTurns, groups) = JoinPieces(turns, prints, mean);
         var labelled = WordsToSpeakers(segments, groupTurns);
-        if (!Number(ref labelled, groupTurns, groups, out var speakerTurns, out var speakers)) return none;
+        if (!Number(ref labelled, groupTurns, groups, out var speakerTurns, out var speakers))
+            return NoLabels(segments, outputDir);
         ct.ThrowIfCancellationRequested();
 
         var suggestions = Suggest(speakers, mean);
@@ -49,11 +49,25 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
         if (libraryWritable)
         {
             library.AddToBackground(prints.Values);
-            library.Save();
+            try { library.Save(); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                stdout.WriteLine($"Warning: voices not saved: {e.Message}");
+            }
         }
 
         return new SpeakerOutcome(labelled, entries.Count,
             entries.Count(e => e.Status == SpeakerStatus.Suggested), entries.Count(e => e.Status == SpeakerStatus.Unknown));
+    }
+
+    /// <summary>The input unchanged. An earlier run's speakers.json and clips are removed, so nothing relabels
+    /// the meeting later from speakers that no longer match its transcript.</summary>
+    private static SpeakerOutcome NoLabels(IReadOnlyList<Segment> segments, string outputDir)
+    {
+        var json = Path.Combine(outputDir, "speakers.json");
+        if (File.Exists(json)) File.Delete(json);
+        DeleteClips(Path.Combine(outputDir, "speakers"), keep: new HashSet<string>());
+        return new SpeakerOutcome(segments, 0, 0, 0);
     }
 
     /// <summary>Raw voiceprint per piece from its longest turns of at least MinTurnForPrint, up to MaxPrintSpeech in
@@ -162,8 +176,10 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
     private static SpeakerEntry Entry(Speaker s, List<SpeakerTurn> turns, List<Segment> segments)
     {
         var seconds = turns.Where(t => t.Speaker == s.Id).Sum(t => t.End - t.Start);
-        // OrderBy is stable, so of equally long segments the earlier one wins.
-        var longest = segments.Where(x => x.Speaker == s.Id).OrderByDescending(x => x.End - x.Start).FirstOrDefault();
+        // The longest segment with words (a wordless one only if there is no other); OrderBy is stable, so of
+        // equally long segments the earlier one wins.
+        var longest = segments.Where(x => x.Speaker == s.Id)
+            .OrderByDescending(x => x.Words.Count > 0).ThenByDescending(x => x.End - x.Start).FirstOrDefault();
         var sample = longest?.Text.Trim() ?? "";
         if (sample.Length > SpeakerSettings.SampleChars) sample = sample[..SpeakerSettings.SampleChars];
         var status = s.Suggestion is null ? SpeakerStatus.Unknown : SpeakerStatus.Suggested;
@@ -189,7 +205,13 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
             WriteAtomically(Path.Combine(dir, e.Id + ".wav"), samples.AsSpan(a, b - a));
         }
 
-        var keep = entries.Select(e => e.Id + ".wav").ToHashSet();
+        DeleteClips(dir, keep: entries.Select(e => e.Id + ".wav").ToHashSet());
+    }
+
+    /// <summary>Removes speaker clips (S&lt;n&gt;.wav) not in keep; other files are left alone.</summary>
+    private static void DeleteClips(string dir, IReadOnlySet<string> keep)
+    {
+        if (!Directory.Exists(dir)) return;
         foreach (var old in Directory.EnumerateFiles(dir))
         {
             var name = Path.GetFileName(old);

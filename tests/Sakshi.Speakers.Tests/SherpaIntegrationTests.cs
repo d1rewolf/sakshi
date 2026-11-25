@@ -28,6 +28,9 @@ public sealed class SherpaIntegrationTests
         var v = printer.Compute(samples, new[] { (t0.Start, t0.End) });
         Console.WriteLine($"model={printer.ModelName} length={v.Length}");
         Assert.Equal(256, v.Length);
+        // Too little audio is an ArgumentException: one sample (sherpa not ready) and 30 ms (sherpa returns NaN).
+        Assert.Throws<ArgumentException>(() => printer.Compute(samples, new[] { (1.0, 1.0 + 1.5 / 16000) }));
+        Assert.Throws<ArgumentException>(() => printer.Compute(samples, new[] { (1.0, 1.03) }));
     }
 
     [Fact]
