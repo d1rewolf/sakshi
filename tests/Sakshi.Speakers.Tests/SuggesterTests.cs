@@ -84,8 +84,22 @@ public class SuggesterTests
     public void Equal_scores_go_to_the_lower_speaker_index()
     {
         var ada = new Candidate("Ada", "Ada", [At(0)]);
-        var r = Suggester.Suggest([At(Deg(0.8)), At(-Deg(0.8))], [ada]);
+        var same = At(Deg(0.8));
+        var r = Suggester.Suggest([same, same], [ada]);
         Assert.Equal("Ada", r[0]!.PersonId);
         Assert.Null(r[1]);
+    }
+
+    [Fact]
+    public void Speaker_that_never_qualified_stays_null_when_a_conflict_frees_a_person()
+    {
+        // Ben at 0, X at 47.9 (Ada 0.70, Ben 0.67: fails the margin), Ada at 93.5.
+        // Y and Z both best-match Ben; Y keeps him, Z falls back and fails. X must not be revisited.
+        var ben = new Candidate("Ben", "Ben", [At(0)]);
+        var ada = new Candidate("Ada", "Ada", [At(Deg(0.67) + Deg(0.70))]);
+        var r = Suggester.Suggest([At(Deg(0.67)), At(5), At(-10)], [ada, ben]);
+        Assert.Null(r[0]);
+        Assert.Equal("Ben", r[1]!.PersonId);
+        Assert.Null(r[2]);
     }
 }

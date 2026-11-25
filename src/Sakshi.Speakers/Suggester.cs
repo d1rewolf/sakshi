@@ -41,16 +41,17 @@ public static class Suggester
             var winners = picks.GroupBy(x => x.Person)
                 .Select(g => g.OrderByDescending(x => x.Score).ThenBy(x => x.Speaker).First())
                 .ToList();
-            var losers = picks.Count - winners.Count;
+            var winnerSpeakers = winners.Select(w => w.Speaker).ToHashSet();
+            // Only speakers that lost a conflict are re-evaluated; one that never qualified stays null.
+            var losers = picks.Where(x => !winnerSpeakers.Contains(x.Speaker)).Select(x => x.Speaker).ToList();
             foreach (var w in winners)
             {
                 var person = usable[w.Person];
                 result[w.Speaker] = new Suggestion(person.PersonId, person.Name, w.Score);
                 taken.Add(w.Person);
-                pending.Remove(w.Speaker);
             }
             // Losers are re-evaluated next round against the people still free.
-            if (losers == 0) break;
+            pending = losers;
         }
         return result;
     }
