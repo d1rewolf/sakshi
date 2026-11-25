@@ -137,7 +137,8 @@ Sakshi then moves the video into your meetings folder and transcribes it in the
 background. You can start the next recording straight away. A notification
 says **Transcript ready** when `meeting.md` is done; this takes a few minutes
 for a one-hour meeting. The very first transcription also downloads the speech
-model (about 150 MB), so it needs the internet and takes longer.
+model (about 150 MB) and the speaker models (about 33 MB), so it needs the
+internet and takes longer.
 
 ## What you get
 
@@ -436,4 +437,5 @@ in the folders listed in `handOffPath` as well as your PATH.
 | Anything else | Look in Sakshi's log, `sakshi.log` (see [where things live](install.md#where-things-live): it is in the state folder). |
 
 The log and the meeting folders never leave your computer. Nothing in Sakshi
-sends data anywhere, except the one-time speech model download.
+sends data anywhere, except the one-time download of the speech and speaker
+models.

@@ -9,7 +9,7 @@
 
 Sakshi (साक्षी, Sanskrit for "witness", one who sees with their own eyes)
 records a meeting window and turns the recording into `meeting.md`: a
-transcript of everything said, with a picture of the screen each time the
+transcript of everything said and who said it, with a picture of the screen each time the
 slides or the shared screen change, ready to read, search, or hand to an LLM. It runs in the tray on Windows, macOS
 and Linux (Ubuntu and Omarchy), and uses OBS to record. When the screen should
 stay out of it, **Record audio only** keeps just the sound (an `.m4a`) and

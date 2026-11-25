@@ -108,8 +108,9 @@ everything is fine and 1 otherwise.
   ```
 
 After the first
-transcription starts, a speech model (about 150 MB) is downloaded, so the first
-one needs internet and takes longer.
+transcription starts, a speech model (about 150 MB) and two models for telling
+speakers apart (about 33 MB) are downloaded, so the first one needs internet
+and takes longer.
 
 ## Where things live
 
@@ -117,7 +118,7 @@ one needs internet and takes longer.
 | --- | --- | --- | --- |
 | Config (`config.json`) | `%APPDATA%\Sakshi` | `~/Library/Application Support/Sakshi` | `~/.config/sakshi` |
 | State and log | `%APPDATA%\Sakshi\state` | `~/Library/Application Support/Sakshi/state` | `~/.local/state/sakshi` |
-| Data (models, index) | `%LOCALAPPDATA%\Sakshi` | `~/Library/Application Support/Sakshi/data` | `~/.local/share/sakshi` |
+| Data (models, index, voice library) | `%LOCALAPPDATA%\Sakshi` | `~/Library/Application Support/Sakshi/data` | `~/.local/share/sakshi` |
 
 Meetings are in `~/meetings` unless `meetingsDir` in `config.json` says
 otherwise. Uninstalling never touches any of these.
