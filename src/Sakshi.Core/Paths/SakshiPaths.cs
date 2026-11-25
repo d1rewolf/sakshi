@@ -9,6 +9,7 @@ public sealed record SakshiPaths(string ConfigDir, string StateDir, string DataD
     public string LogFile => Path.Combine(StateDir, "sakshi.log");
     public string IndexFile => Path.Combine(DataDir, "index.db");
     public string ModelsDir => Path.Combine(DataDir, "models");
+    public string VoicesFile => Path.Combine(DataDir, "voices", "voices.json");
 
     public static SakshiPaths Current()
     {
