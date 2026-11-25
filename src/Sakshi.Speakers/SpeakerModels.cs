@@ -18,7 +18,7 @@ public static class SpeakerModels
         [EmbeddingName] = "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
     };
 
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
+    private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     public static SpeakerModelPaths In(string modelsDir)
     {
@@ -43,7 +43,14 @@ public static class SpeakerModels
             // sherpa kills the process on a bad model, so an existing file must match its hash too.
             if (File.Exists(path))
             {
-                if (await HashOfAsync(path, ct) == hashes[name].ToLowerInvariant()) continue;
+                try
+                {
+                    if (await HashOfAsync(path, ct) == hashes[name].ToLowerInvariant()) continue;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    return $"speaker model {name}: {e.Message}";
+                }
                 TryDelete(path);
             }
             var part = path + ".part";
@@ -81,6 +88,11 @@ public static class SpeakerModels
 
     private static async Task DownloadAsync(Uri url, Stream destination, CancellationToken ct)
     {
+        // The whole download, not just the headers, gets ten minutes. A timeout cancels this token only, so the
+        // caller sees a failure reason, while the caller's own cancellation still propagates.
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(TimeSpan.FromMinutes(10));
+        ct = limit.Token;
         using var response = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         await using var body = await response.Content.ReadAsStreamAsync(ct);

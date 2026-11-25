@@ -29,4 +29,15 @@ public sealed class SherpaIntegrationTests
         Console.WriteLine($"model={printer.ModelName} length={v.Length}");
         Assert.Equal(256, v.Length);
     }
+
+    [Fact]
+    public void SpanSamplesIgnoresEmptyAndNonFiniteSpans()
+    {
+        var samples = new float[32000];
+        Assert.Empty(SherpaVoiceprinter.SpanSamples(samples, Array.Empty<(double, double)>()));
+        Assert.Empty(SherpaVoiceprinter.SpanSamples(samples, new[] {
+            (double.NaN, 1.0), (0.0, double.PositiveInfinity), (3.0, 4.0), (1.0, 1.0), (1.5, 0.5) }));
+        var parts = SherpaVoiceprinter.SpanSamples(samples, new[] { (0.0, 0.5), (1.5, 9.0) });
+        Assert.Equal(new[] { 8000, 8000 }, parts.Select(p => p.Length).ToArray());
+    }
 }

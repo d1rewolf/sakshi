@@ -2,6 +2,7 @@ using SherpaOnnx;
 
 namespace Sakshi.Speakers;
 
+/// <summary>One instance serves one caller at a time.</summary>
 public sealed class SherpaDiarizer : IDiarizer
 {
     private readonly OfflineSpeakerDiarization _sd;
@@ -9,8 +10,8 @@ public sealed class SherpaDiarizer : IDiarizer
     public SherpaDiarizer(string segmentationModel, string embeddingModel, int threads)
     {
         // sherpa aborts the whole process on a missing model, so check first.
-        foreach (var m in new[] { segmentationModel, embeddingModel })
-            if (!File.Exists(m)) throw new FileNotFoundException("speaker model not found", m);
+        if (!File.Exists(segmentationModel)) throw new FileNotFoundException("speaker model not found", segmentationModel);
+        if (!File.Exists(embeddingModel)) throw new FileNotFoundException("speaker model not found", embeddingModel);
         var cfg = new OfflineSpeakerDiarizationConfig();
         cfg.Segmentation.Pyannote.Model = segmentationModel;
         cfg.Segmentation.NumThreads = threads;
@@ -18,10 +19,11 @@ public sealed class SherpaDiarizer : IDiarizer
         cfg.Embedding.NumThreads = threads;
         cfg.Clustering.Threshold = (float)SpeakerSettings.ClusterThreshold;
         _sd = new OfflineSpeakerDiarization(cfg);
-        if (_sd.SampleRate != 16000)
+        var rate = _sd.SampleRate;
+        if (rate != 16000)
         {
             _sd.Dispose();
-            throw new InvalidOperationException($"speaker model expects {_sd.SampleRate} Hz audio, not 16000");
+            throw new InvalidOperationException($"speaker model expects {rate} Hz audio, not 16000");
         }
     }
 
