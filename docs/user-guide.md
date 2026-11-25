@@ -230,7 +230,9 @@ folder.
 
 On a meeting that already has labels, `--add` starts over: the names you gave
 are not kept, but voices Sakshi has learned come back as guesses (with a `?`)
-for you to accept.
+for you to accept. What Sakshi learned from the earlier labels stays: the
+voices are numbered afresh, so correcting the new `S2` does not undo what the
+old `S2` taught.
 
 ### The people Sakshi knows
 

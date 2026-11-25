@@ -306,6 +306,7 @@ public class TranscribeCommandTests : IDisposable
         File.WriteAllText(Path.Combine(outDir, "speakers.json"), "{}");
         File.WriteAllText(Path.Combine(outDir, "speakers", "S1.wav"), "wav");
         File.WriteAllText(Path.Combine(outDir, "speakers", "S12.wav"), "wav");
+        File.WriteAllText(Path.Combine(outDir, "speakers", "S3-2.wav"), "wav");
     }
 
     [Fact]

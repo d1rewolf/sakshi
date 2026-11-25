@@ -164,10 +164,16 @@ be rebuilt exactly; `frames` is `null` when the meeting has no frames section (`
 
 - Only the user teaches the library: naming a speaker or accepting a suggestion adds that speaker's voiceprint.
   Suggestions never add one, so a wrong match cannot reinforce itself.
-- A voiceprint is stored with its meeting and speaker id. Teaching first removes any voiceprint already stored for the
-  same meeting and speaker, from whichever person holds it, so correcting a name (`S1=Ada`, then `S1=Ben`) fixes what
-  was learned and naming twice keeps one voiceprint. Taking a name off (`S1=`) removes that one voiceprint. A person
-  left with no voiceprints stays in the library (listed with 0) and is never suggested. Joining moves nothing.
+- A voiceprint is stored with its meeting and speaker id. Teaching first removes the same voiceprint already stored
+  for the same meeting, from whichever person holds it, so correcting a name (`S1=Ada`, then `S1=Ben`) fixes what was
+  learned and naming twice keeps one voiceprint. Taking a name off (`S1=`) removes that one voiceprint. Prints are
+  matched on the vector, not the id, because labelling a meeting again (`--add`, or transcribing it again) numbers its
+  speakers afresh: the new S1 is not the voice the old S1 taught, and correcting it leaves that earlier voiceprint
+  alone, while the same voice coming back under another id still replaces its earlier print. The id is kept only as a
+  record. A person left with no voiceprints stays in the library (listed with 0) and is never suggested.
+- Joining two speakers replaces the voiceprints both taught with the joined speaker's voiceprint, stored under the id
+  that stays, so the library holds exactly the voiceprint speakers.json shows for each named speaker, and correcting
+  or taking off the joined speaker's name later takes back everything both pieces taught.
 - Labelling adds to the background sum. It reads the library again just before saving and applies only that update,
   so a name taught or a person forgotten meanwhile is kept; if the file cannot be read then, it is left alone.
 - If the file exists but cannot be read (bad JSON, wrong version), labelling still runs as if it were empty but
@@ -201,8 +207,10 @@ changed. Each file is written to a temp file and renamed over the old one.
 (with word times) and the speaker steps, and rewrites transcript.json, transcript.srt, meeting.md and speakers.json.
 Frames are not extracted again: meeting.md is rebuilt from the `frames/frame_HH-MM-SS*.jpg` files already there.
 speakers.json is replaced together with the other three files (all temp files written first, then renamed); the clips
-are swapped in afterwards, best effort (a failure prints `Warning: DIR: could not replace the voice clips: …`, and at
-worst some clips are missing or old). ffmpeg is needed only for a meeting without `audio.wav`; without it, that meeting
+are swapped in afterwards, best effort. A clip that cannot be replaced (on Windows, one open in a player) goes in
+under the first free name `S3-2.wav`, `S3-3.wav`, … and speakers.json is pointed at it, so a speaker's clip never
+plays someone else; the next labelling removes those names too. If even that fails, Sakshi prints
+`Warning: DIR: could not put the new voice clip for S3 in place: …` and that clip may still play an earlier voice. ffmpeg is needed only for a meeting without `audio.wav`; without it, that meeting
 is skipped with a warning. On a meeting that already has labels, `--add` starts over: names given before come back as
 suggestions if the voices are in the library.
 

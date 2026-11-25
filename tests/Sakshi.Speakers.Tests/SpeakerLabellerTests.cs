@@ -306,6 +306,7 @@ public sealed class SpeakerLabellerTests : IDisposable
         var clips = Path.Combine(Out, "speakers");
         Assert.True(File.Exists(SpeakersJson));
         File.WriteAllText(Path.Combine(clips, "notes.txt"), "not ours");
+        File.WriteAllText(Path.Combine(clips, "S2-2.wav"), "put in under another name by --add");
 
         var r = Run(new FakeDiarizer(), p, segs, Audio(20));
         Assert.Equal(0, r.Speakers);

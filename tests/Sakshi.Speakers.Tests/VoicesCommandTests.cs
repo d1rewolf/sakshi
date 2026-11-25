@@ -16,7 +16,7 @@ public sealed class VoicesCommandTests : IDisposable
         var lib = VoiceLibrary.Load(_file);
         lib.Teach("Ada", [1f, 0f], "d/one", "S1", Now);
         lib.Teach("Ada", [1f, 0f], "d/two", "S1", Now.AddMinutes(1));
-        lib.Teach("Ada", [1f, 0f], "d/two", "S2", Now.AddMinutes(2));
+        lib.Teach("Ada", [0.6f, 0.8f], "d/two", "S2", Now.AddMinutes(2));
         lib.Teach("Ben", [0f, 1f], "d/one", "S2", Now);
         lib.Save();
     }

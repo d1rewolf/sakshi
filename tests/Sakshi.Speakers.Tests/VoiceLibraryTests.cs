@@ -153,11 +153,22 @@ public sealed class VoiceLibraryTests : IDisposable
         var lib = VoiceLibrary.Load(File_);
         lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
         lib.Teach("Ada", [1f, 0f], "d/two", "S1", T0);
-        lib.Teach("Ben", [0f, 1f], "d/one", "S1", T0.AddMinutes(1));
+        lib.Teach("Ben", [1f, 0f], "d/one", "S1", T0.AddMinutes(1));
         Assert.Equal(["d/two"], lib.Find("Ada")!.Prints.Select(p => p.Meeting));
         Assert.Equal(["d/one"], lib.Find("Ben")!.Prints.Select(p => p.Meeting));
 
-        lib.Teach("Ben", [0f, 1f], "d/one", "S1", T0.AddMinutes(2));
+        lib.Teach("Ben", [1f, 0f], "d/one", "S1", T0.AddMinutes(2));
+        Assert.Single(lib.Find("Ben")!.Prints);
+    }
+
+    [Fact]
+    public void TeachKeepsAPrintFromAnEarlierLabellingThatReusedTheId()
+    {
+        // Labelling a meeting again numbers its speakers afresh: the new S1 is not the voice the old S1 taught.
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        lib.Teach("Ben", [0f, 1f], "d/one", "S1", T0.AddMinutes(1));
+        Assert.Single(lib.Find("Ada")!.Prints);
         Assert.Single(lib.Find("Ben")!.Prints);
     }
 
@@ -166,11 +177,43 @@ public sealed class VoiceLibraryTests : IDisposable
     {
         var lib = VoiceLibrary.Load(File_);
         lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
-        Assert.True(lib.Unteach("d/one", "S1"));
+        Assert.True(lib.Unteach("d/one", [1f, 0f]));
         Assert.Empty(lib.Find("Ada")!.Prints);
-        Assert.False(lib.Unteach("d/one", "S1"));
+        Assert.False(lib.Unteach("d/one", [1f, 0f]));
         lib.Save();
         Assert.Empty(VoiceLibrary.Load(File_).Find("Ada")!.Prints);
+    }
+
+    [Fact]
+    public void UnteachMatchesTheMeetingAndTheVoiceprint()
+    {
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        Assert.False(lib.Unteach("d/one", [0f, 1f]));
+        Assert.False(lib.Unteach("d/two", [1f, 0f]));
+        Assert.Single(lib.Find("Ada")!.Prints);
+    }
+
+    [Fact]
+    public void TheSameVoiceUnderANewIdReplacesItsEarlierPrint()
+    {
+        // Labelling the same audio again can give the same voice another id; it is still one voiceprint.
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        lib.Teach("Ben", [1f, 0f], "d/one", "S4", T0.AddMinutes(1));
+        Assert.Empty(lib.Find("Ada")!.Prints);
+        Assert.Equal("S4", Assert.Single(lib.Find("Ben")!.Prints).Speaker);
+    }
+
+    [Fact]
+    public void UnteachMatchesAVoiceprintAfterASaveAndLoad()
+    {
+        var v = new[] { 0.1f, -0.3333333f, 1e-7f, 0.70710677f };
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", v, "d/one", "S1", T0);
+        lib.Save();
+        var again = VoiceLibrary.Load(File_);
+        Assert.True(again.Unteach("d/one", (float[])v.Clone()));
     }
 
     [Fact]

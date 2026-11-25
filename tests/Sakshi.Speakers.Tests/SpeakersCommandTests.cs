@@ -20,7 +20,7 @@ public sealed class SpeakersCommandTests : IDisposable
         var file = new SpeakersFile(1, "m", "standup.mp4", null,
         [
             Entry("S1", SpeakerStatus.Unknown, null, null, 432, "Can you see my screen?", [1f, 0f]),
-            Entry("S2", SpeakerStatus.Suggested, null, "Ben", 60, "Hi", [0f, 1f]),
+            Entry("S2", SpeakerStatus.Suggested, null, "Ben", 60, "Hi", [0.8f, 0.6f]),
             Entry("S3", SpeakerStatus.Unknown, null, null, 144, "Yo", [0f, 1f]),
         ]);
         foreach (var e in file.Speakers) File.WriteAllText(Path.Combine(_dir, e.Clip), "wav");
@@ -70,7 +70,7 @@ public sealed class SpeakersCommandTests : IDisposable
         Assert.Null(s2.Suggestion);
         Assert.Contains("**Ada:**", Md);
         var lib = VoiceLibrary.Load(_voices);
-        Assert.Equal([0f, 1f], lib.Find("Ada")!.Prints.Single().Vector);
+        Assert.Equal([0.8f, 0.6f], lib.Find("Ada")!.Prints.Single().Vector);
         Assert.Equal("2026-01-05-Mon/standup", lib.Find("Ada")!.Prints.Single().Meeting);
         Assert.Equal(lib.Find("Ada")!.Id, s2.PersonId);
     }
@@ -138,6 +138,84 @@ public sealed class SpeakersCommandTests : IDisposable
         Assert.Empty(lib.Find("Ada")!.Prints);
         var ben = Assert.Single(lib.Find("Ben")!.Prints);
         Assert.Equal(("2026-01-05-Mon/standup", "S1"), (ben.Meeting, ben.Speaker));
+    }
+
+    private void Relabel(string id, float[] voiceprint)
+    {
+        // What sakshi speakers --add leaves behind: the same ids, numbered afresh, with new voiceprints.
+        var f = Sf;
+        f = f with
+        {
+            Speakers = f.Speakers.Select(x => x.Id == id
+                ? x with { Status = SpeakerStatus.Unknown, Name = null, PersonId = null, Voiceprint = voiceprint } : x).ToList(),
+        };
+        f.Write(Path.Combine(_dir, "speakers.json"));
+    }
+
+    [Fact]
+    public void CorrectingAfterRelabellingKeepsThePrintTheOldSpeakerTaught()
+    {
+        Run(_dir, "S1=Ada");
+        Relabel("S1", [0.6f, 0.8f]);
+        Assert.Equal(0, Run(_dir, "S1=Ben").Code);
+        var lib = VoiceLibrary.Load(_voices);
+        Assert.Equal([1f, 0f], Assert.Single(lib.Find("Ada")!.Prints).Vector);
+        Assert.Equal([0.6f, 0.8f], Assert.Single(lib.Find("Ben")!.Prints).Vector);
+    }
+
+    [Fact]
+    public void TakingANameOffAfterRelabellingKeepsThePrintTheOldSpeakerTaught()
+    {
+        Run(_dir, "S1=Ada");
+        Relabel("S1", [0.6f, 0.8f]);
+        Run(_dir, "S1=Ben");
+        Assert.Equal(0, Run(_dir, "S1=").Code);
+        var lib = VoiceLibrary.Load(_voices);
+        Assert.Single(lib.Find("Ada")!.Prints);
+        Assert.Empty(lib.Find("Ben")!.Prints);
+    }
+
+    [Fact]
+    public void JoiningLeavesOnePrintTheJoinedVoice()
+    {
+        Run(_dir, "S1=Ada", "S3=Ada");
+        var print = Assert.Single(VoiceLibrary.Load(_voices).Find("Ada")!.Prints);
+        Assert.Equal("S1", print.Speaker);
+        Assert.Equal(Sf.Speakers.Single(s => s.Id == "S1").Voiceprint, print.Vector);
+    }
+
+    [Fact]
+    public void CorrectingAJoinedSpeakerMovesEverythingItTaught()
+    {
+        Run(_dir, "S1=Ada");
+        Run(_dir, "S3=Ada");
+        Assert.Equal(0, Run(_dir, "S1=Ben").Code);
+        var lib = VoiceLibrary.Load(_voices);
+        Assert.Empty(lib.Find("Ada")!.Prints);
+        Assert.Single(lib.Find("Ben")!.Prints);
+    }
+
+    [Fact]
+    public void TakingTheNameOffAJoinedSpeakerForgetsEverythingItTaught()
+    {
+        Run(_dir, "S2=Ada", "S3=Ada", "S1=Ada");
+        Assert.Single(VoiceLibrary.Load(_voices).Find("Ada")!.Prints);
+        Assert.Equal(0, Run(_dir, "S1=").Code);
+        Assert.Empty(VoiceLibrary.Load(_voices).Find("Ada")!.Prints);
+    }
+
+    [Fact]
+    public void JoiningAFullPersonKeepsTheirOtherPrints()
+    {
+        var lib = VoiceLibrary.Load(_voices);
+        for (var k = 0; k < 9; k++) lib.Teach("Ada", [k, 1f], $"x/m{k}", "S1", Now.AddDays(-10 + k));
+        lib.Save();
+        Run(_dir, "S1=Ada");
+        Assert.Equal(10, VoiceLibrary.Load(_voices).Find("Ada")!.Prints.Count);
+        Assert.Equal(0, Run(_dir, "S3=Ada").Code);
+        var ada = VoiceLibrary.Load(_voices).Find("Ada")!;
+        Assert.Equal(10, ada.Prints.Count);
+        Assert.Contains(ada.Prints, p => p.Meeting == "x/m0");
     }
 
     [Fact]

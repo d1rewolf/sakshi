@@ -78,15 +78,16 @@ public sealed class VoiceLibrary
         _people.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Adds a voiceprint to the person with <paramref name="personId"/> (when given and still there), else to
-    /// the person called <paramref name="name"/>, made if needed. Any print already taught from the same meeting and
-    /// speaker is removed first, from whoever holds it, so correcting a name fixes what was learned from that voice.</summary>
+    /// the person called <paramref name="name"/>, made if needed. The same voiceprint already taught from the same
+    /// meeting is removed first, from whoever holds it, so correcting a name fixes what was learned from that voice.
+    /// <paramref name="speaker"/> is kept with the print as a record of where it came from.</summary>
     public Person Teach(string name, float[] raw, string meeting, string speaker, DateTimeOffset now, string? personId = null)
     {
         var width = _sum?.Length ?? _people.SelectMany(p => p.Prints).Select(p => p.Vector.Length).FirstOrDefault();
         if (width > 0 && raw.Length != width)
             throw new VoiceLibraryException(
                 $"The voice library {_path} holds voiceprints of {width} values, but this speaker's has {raw.Length}; it was made with a different voice model.");
-        Unteach(meeting, speaker);
+        Unteach(meeting, raw);
         var print = new StoredPrint((float[])raw.Clone(), meeting, speaker, now);
         var existing = (personId is null ? null : _people.FirstOrDefault(p => p.Id == personId)) ?? Find(name);
         var prints = existing is null ? [] : existing.Prints.ToList();
@@ -100,14 +101,18 @@ public sealed class VoiceLibrary
         return person;
     }
 
-    /// <summary>Removes every voiceprint taught from this meeting's speaker. People left without prints stay.</summary>
-    public bool Unteach(string meeting, string speaker)
+    /// <summary>Removes this voiceprint where it was taught from this meeting. Matched on the vector, not the speaker
+    /// id: labelling a meeting again numbers its speakers afresh, so the new S2 is not the voice the old S2 taught,
+    /// while the same voice may come back under another id. People left without prints stay.</summary>
+    public bool Unteach(string meeting, float[] voiceprint)
     {
         var removed = false;
         for (var i = 0; i < _people.Count; i++)
         {
             var p = _people[i];
-            var keep = p.Prints.Where(v => !(v.Meeting == meeting && v.Speaker == speaker)).ToList();
+            var keep = p.Prints
+                .Where(v => !(v.Meeting == meeting && v.Vector.AsSpan().SequenceEqual(voiceprint)))
+                .ToList();
             if (keep.Count == p.Prints.Count) continue;
             _people[i] = p with { Prints = keep };
             removed = true;

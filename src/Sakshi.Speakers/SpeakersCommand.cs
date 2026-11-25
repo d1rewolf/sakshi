@@ -141,30 +141,33 @@ public static class SpeakersCommand
             if (text.Length == 0)
             {
                 // What Sakshi learned from this voice goes too; the person stays, even with no voiceprints left.
-                if (library.Unteach(meeting, e.Id)) taught = true;
+                if (library.Unteach(meeting, e.Voiceprint)) taught = true;
                 entries[i] = e with { Status = SpeakerStatus.Unknown, Name = null, PersonId = null, Suggestion = null, Score = null };
                 lines.Add($"{e.Id} is now unknown");
                 return;
             }
-            Person person;
-            try { person = library.Teach(text, e.Voiceprint, meeting, e.Id, now, personId); }
-            catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
-            taught = true;
-            var named = e with
-            {
-                Status = SpeakerStatus.Named, Name = person.Name, PersonId = person.Id, Suggestion = null, Score = null,
-            };
+            // Who the name means, before anything is taught: a speaker already named as that person is joined.
+            var target = (personId is null ? null : library.People.FirstOrDefault(p => p.Id == personId))
+                ?? library.Find(text);
             var j = entries.FindIndex(o => o.Id != e.Id && o.Status == SpeakerStatus.Named
-                && (o.PersonId is not null ? o.PersonId == person.Id
-                    : string.Equals(o.Name, person.Name, StringComparison.OrdinalIgnoreCase)));
+                && (o.PersonId is not null ? o.PersonId == target?.Id
+                    : string.Equals(o.Name, target?.Name ?? text, StringComparison.OrdinalIgnoreCase)));
+            Person person;
             if (j < 0)
             {
-                entries[i] = named;
+                try { person = library.Teach(text, e.Voiceprint, meeting, e.Id, now, personId); }
+                catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
+                taught = true;
+                entries[i] = e with
+                {
+                    Status = SpeakerStatus.Named, Name = person.Name, PersonId = person.Id, Suggestion = null, Score = null,
+                };
                 lines.Add($"{e.Id} is now {person.Name}");
                 return;
             }
+
             var other = entries[j];
-            var (keep, drop) = IdNumber(e.Id) <= IdNumber(other.Id) ? (named, other) : (other, named);
+            var (keep, drop) = IdNumber(e.Id) <= IdNumber(other.Id) ? (e, other) : (other, e);
             var seconds = keep.Seconds + drop.Seconds;
             var print = keep.Voiceprint;
             if (keep.Voiceprint.Length == drop.Voiceprint.Length)
@@ -172,7 +175,18 @@ public static class SpeakersCommand
                 var wk = seconds > 0 ? keep.Seconds / seconds : 0.5;
                 print = keep.Voiceprint.Select((v, k) => (float)(v * wk + drop.Voiceprint[k] * (1 - wk))).ToArray();
             }
-            var merged = keep with { Name = person.Name, Seconds = seconds, Voiceprint = print };
+            // The library swaps whatever the two speakers taught for the joined voiceprint, under the id that stays,
+            // so correcting or taking off that speaker's name later takes back everything both pieces taught.
+            library.Unteach(meeting, e.Voiceprint);
+            library.Unteach(meeting, other.Voiceprint);
+            try { person = library.Teach(text, print, meeting, keep.Id, now, personId ?? target?.Id); }
+            catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
+            taught = true;
+            var merged = keep with
+            {
+                Status = SpeakerStatus.Named, Name = person.Name, PersonId = person.Id, Suggestion = null, Score = null,
+                Seconds = seconds, Voiceprint = print,
+            };
             entries.RemoveAll(o => o.Id == keep.Id || o.Id == drop.Id);
             entries.Add(merged);
             entries = entries.OrderBy(o => IdNumber(o.Id)).ToList();

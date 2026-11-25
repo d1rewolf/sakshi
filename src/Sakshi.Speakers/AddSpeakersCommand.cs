@@ -17,9 +17,6 @@ public static partial class AddSpeakersCommand
     [GeneratedRegex(@"^- Source: `(.+)`\s*$", RegexOptions.Multiline)]
     private static partial Regex SourceLine();
 
-    [GeneratedRegex(@"^S\d+\.wav$")]
-    private static partial Regex ClipName();
-
     public static async Task<int> RunAsync(IReadOnlyList<string> meetings, IReadOnlyList<string> roots, IWhisper whisper,
         string model, ISpeakerStep step, TextWriter stdout, TextWriter stderr, CancellationToken ct,
         Func<bool>? ffmpegAvailable = null)
@@ -133,7 +130,7 @@ public static partial class AddSpeakersCommand
                 (Path.Combine(dir, "meeting.md"), p => File.WriteAllText(p, md, new UTF8Encoding(false))),
                 (speakersPath, p => File.Copy(stagedJson, p, overwrite: true)),
             ]);
-            try { ReplaceClips(Path.Combine(staging, "speakers"), Path.Combine(dir, "speakers")); }
+            try { ReplaceClips(dir, Path.Combine(staging, "speakers"), speakersPath, stderr); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 stderr.WriteLine($"Warning: {dir}: could not replace the voice clips: {e.Message}");
@@ -149,22 +146,76 @@ public static partial class AddSpeakersCommand
         return true;
     }
 
-    /// <summary>Best effort, after the labels are in place: each new clip is moved in over the old one, then old
-    /// clips of speakers that no longer exist are deleted. A failure part way leaves some clips missing or old, never
-    /// the labels without their speakers.json.</summary>
-    private static void ReplaceClips(string staged, string clips)
+    /// <summary>Best effort, after the labels are in place. Each new clip is moved in over the old one. A clip that
+    /// cannot be replaced (on Windows, one open in a player) goes in under the first free name S3-2.wav, S3-3.wav, …
+    /// and speakers.json is pointed at it, so a speaker's clip never plays someone else. Every other clip is then
+    /// deleted where it can be.</summary>
+    private static void ReplaceClips(string dir, string staged, string speakersPath, TextWriter stderr)
     {
+        var clips = Path.Combine(dir, "speakers");
         Directory.CreateDirectory(clips);
-        var fresh = new HashSet<string>(StringComparer.Ordinal);
+        var placed = new HashSet<string>(StringComparer.Ordinal);
+        var elsewhere = new Dictionary<string, string>(StringComparer.Ordinal); // speaker id -> clip file name
         if (Directory.Exists(staged))
             foreach (var f in Directory.EnumerateFiles(staged))
             {
                 var name = Path.GetFileName(f);
-                File.Move(f, Path.Combine(clips, name), overwrite: true);
-                fresh.Add(name);
+                var id = Path.GetFileNameWithoutExtension(name);
+                try
+                {
+                    File.Move(f, Path.Combine(clips, name), overwrite: true);
+                    placed.Add(name);
+                    continue;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                try
+                {
+                    var other = FreeName(clips, id);
+                    File.Move(f, Path.Combine(clips, other));
+                    placed.Add(other);
+                    elsewhere[id] = other;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    stderr.WriteLine($"Warning: {dir}: could not put the new voice clip for {id} in place: {e.Message}; " +
+                        $"speakers/{name} may still play an earlier voice (close any program using it and run sakshi speakers --add again)");
+                }
             }
+
+        if (elsewhere.Count > 0)
+            try
+            {
+                var file = SpeakersFile.Read(speakersPath);
+                (file with
+                {
+                    Speakers = file.Speakers
+                        .Select(s => elsewhere.TryGetValue(s.Id, out var n) ? s with { Clip = "speakers/" + n } : s).ToList(),
+                }).Write(speakersPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                // The clips speakers.json still names were not replaced; the deletes below take them away if they can.
+                stderr.WriteLine($"Warning: {dir}: could not point speakers.json at the new voice clips: {e.Message}");
+                foreach (var id in elsewhere.Keys.Order(StringComparer.Ordinal))
+                    stderr.WriteLine($"Warning: {dir}: speakers/{id}.wav may still play an earlier voice " +
+                        "(close any program using it and run sakshi speakers --add again)");
+            }
+
         foreach (var old in Directory.EnumerateFiles(clips))
-            if (ClipName().IsMatch(Path.GetFileName(old)) && !fresh.Contains(Path.GetFileName(old))) File.Delete(old);
+        {
+            var name = Path.GetFileName(old);
+            if (!SpeakerClips.IsClipName(name) || placed.Contains(name)) continue;
+            try { File.Delete(old); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    private static string FreeName(string clips, string id)
+    {
+        for (var k = 2; ; k++)
+        {
+            var name = $"{id}-{k}.wav";
+            if (!Path.Exists(Path.Combine(clips, name))) return name;
+        }
     }
 
     private static string? SourceFromMeetingMd(string dir)

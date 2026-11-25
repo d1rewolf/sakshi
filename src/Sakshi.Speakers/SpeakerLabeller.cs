@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Sakshi.Transcribe;
 
 namespace Sakshi.Speakers;
@@ -8,7 +7,7 @@ namespace Sakshi.Speakers;
 /// piece, join pieces that sound alike, suggest names from the voice library, then words to speakers and segments
 /// split where the speaker changes. Writes speakers.json and speakers/Sn.wav into the meeting folder.
 /// </summary>
-public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter printer, VoiceLibrary library, bool libraryWritable)
+public sealed class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter printer, VoiceLibrary library, bool libraryWritable)
 {
     private const int Rate = 16000;
 
@@ -216,14 +215,14 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
         DeleteClips(dir, keep: entries.Select(e => e.Id + ".wav").ToHashSet());
     }
 
-    /// <summary>Removes speaker clips (S&lt;n&gt;.wav) not in keep; other files are left alone.</summary>
+    /// <summary>Removes speaker clips (see <see cref="SpeakerClips"/>) not in keep; other files are left alone.</summary>
     private static void DeleteClips(string dir, IReadOnlySet<string> keep)
     {
         if (!Directory.Exists(dir)) return;
         foreach (var old in Directory.EnumerateFiles(dir))
         {
             var name = Path.GetFileName(old);
-            if (ClipName().IsMatch(name) && !keep.Contains(name)) File.Delete(old);
+            if (SpeakerClips.IsClipName(name) && !keep.Contains(name)) File.Delete(old);
         }
     }
 
@@ -241,7 +240,4 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
             throw;
         }
     }
-
-    [GeneratedRegex(@"^S\d+\.wav$")]
-    private static partial Regex ClipName();
 }

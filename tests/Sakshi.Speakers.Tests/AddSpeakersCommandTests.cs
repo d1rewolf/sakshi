@@ -314,22 +314,75 @@ public sealed class AddSpeakersCommandTests : IDisposable
     }
 
     [Fact]
-    public void AClipSwapFailureWarnsButTheLabelsAreDone()
+    public void AClipThatCannotBeReplacedGoesInUnderAnotherName()
     {
         var dir = Meeting("clips");
         SeedOld(dir);
-        // A folder where the new clip should go: the clip cannot be put in place.
+        // A folder where the new clip should go stands in for a clip held open by a player on Windows.
         Directory.CreateDirectory(Path.Combine(dir, "speakers", "S1.wav"));
         var r = Run(new FakeWhisper(), new FakeStep(), dir);
         Assert.Equal(0, r.Code);
-        Assert.Contains($"Warning: {dir}: could not replace the voice clips: ", r.Err);
+        Assert.Equal("", r.Err);
         Assert.Contains("   found 2 speakers", r.Out);
-        // speakers.json always matches the new transcript; at worst clips are missing or old.
         var json = SpeakersFile.Read(Path.Combine(dir, "speakers.json"));
-        Assert.Equal(["S1"], json.Speakers.Select(x => x.Id));
+        var s1 = Assert.Single(json.Speakers);
+        Assert.Equal("speakers/S1-2.wav", s1.Clip);
+        Assert.Equal("new clip", File.ReadAllText(Path.Combine(dir, "speakers", "S1-2.wav")));
         Assert.Contains("\"speaker\": \"S1\"", File.ReadAllText(Path.Combine(dir, "transcript.json")));
         Assert.Contains("**Speaker 1:**", File.ReadAllText(Path.Combine(dir, "meeting.md")));
+        Assert.False(File.Exists(Path.Combine(dir, "speakers", "S9.wav")));
         Assert.False(Directory.Exists(Path.Combine(dir, ".speakers-staging")));
+    }
+
+    [Fact]
+    public void AnotherNameSkipsNamesAlreadyTaken()
+    {
+        var dir = Meeting("taken");
+        Directory.CreateDirectory(Path.Combine(dir, "speakers", "S1.wav"));
+        Directory.CreateDirectory(Path.Combine(dir, "speakers", "S1-2.wav"));
+        Assert.Equal(0, Run(new FakeWhisper(), new FakeStep(), dir).Code);
+        Assert.Equal("speakers/S1-3.wav", SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Speakers[0].Clip);
+        Assert.Equal("new clip", File.ReadAllText(Path.Combine(dir, "speakers", "S1-3.wav")));
+    }
+
+    [Fact]
+    public void AClipPutInUnderAnotherNameEarlierIsCleanedUp()
+    {
+        var dir = Meeting("again");
+        SeedOld(dir);
+        File.WriteAllText(Path.Combine(dir, "speakers", "S1-2.wav"), "older clip");
+        File.WriteAllText(Path.Combine(dir, "speakers", "notes.txt"), "mine");
+        Assert.Equal(0, Run(new FakeWhisper(), new FakeStep(), dir).Code);
+        Assert.Equal(["S1.wav", "notes.txt"],
+            Directory.GetFiles(Path.Combine(dir, "speakers")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal("speakers/S1.wav", SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Speakers[0].Clip);
+    }
+
+    [Fact]
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    public void AClipThatCannotGoInAtAllIsWarnedAbout()
+    {
+        if (OperatingSystem.IsWindows()) Assert.Skip("uses a read-only folder, which Windows does not enforce this way");
+        if (Environment.UserName == "root") Assert.Skip("root can write to a read-only folder");
+        var dir = Meeting("stuck");
+        var clips = Path.Combine(dir, "speakers");
+        Directory.CreateDirectory(clips);
+        File.WriteAllText(Path.Combine(clips, "S1.wav"), "old voice");
+        File.SetUnixFileMode(clips, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            var r = Run(new FakeWhisper(), new FakeStep(), dir);
+            Assert.Equal(0, r.Code);
+            Assert.Contains($"Warning: {dir}: could not put the new voice clip for S1 in place: ", r.Err);
+            Assert.Contains("speakers/S1.wav may still play an earlier voice", r.Err);
+            // The labels are done; only the clip is out of date.
+            Assert.Equal("speakers/S1.wav", SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Speakers[0].Clip);
+            Assert.Contains("**Speaker 1:**", File.ReadAllText(Path.Combine(dir, "meeting.md")));
+        }
+        finally
+        {
+            File.SetUnixFileMode(clips, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
     }
 
     [Fact]
