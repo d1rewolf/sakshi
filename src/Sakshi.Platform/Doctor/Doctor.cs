@@ -24,6 +24,7 @@ public static class Doctor
             ("OBS WebSocket", () => WebSocket(paths, probes)),
             ("ffmpeg", () => Ffmpeg(os, probes)),
             ("Speech model", () => SpeechModel(config, paths, probes)),
+            ("Speaker models", () => SpeakerModels(paths, probes)),
         };
         if (os == HostOs.Windows) checks.Add(("VC++ runtime", () => VcRuntime(probes)));
         if (os == HostOs.Linux && probes.Env("XDG_CURRENT_DESKTOP") is { } d && d.Contains("GNOME", StringComparison.OrdinalIgnoreCase))
@@ -159,6 +160,17 @@ public static class Doctor
         if (p.FileExists(Path.Combine(paths.ModelsDir, DefaultModelFile))) return new DoctorCheck("Speech model", true, Path.Combine(paths.ModelsDir, DefaultModelFile), null);
         if (p.FilesIn(paths.ModelsDir).FirstOrDefault() is { } any) return new DoctorCheck("Speech model", true, any, null);
         return new DoctorCheck("Speech model", true, "downloads about 150 MB on first transcription", null);
+    }
+
+    // The file names are SpeakerModels' in Sakshi.Speakers, which Platform does not reference: keep them in step.
+    private static readonly string[] SpeakerModelFiles = ["pyannote-segmentation-3-0.onnx", "wespeaker_en_voxceleb_resnet34_LM.onnx"];
+
+    private static DoctorCheck SpeakerModels(SakshiPaths paths, DoctorProbes p)
+    {
+        var dir = Path.Combine(paths.ModelsDir, "speakers");
+        return SpeakerModelFiles.All(f => p.FileExists(Path.Combine(dir, f)))
+            ? new DoctorCheck("Speaker models", true, dir, null)
+            : new DoctorCheck("Speaker models", true, "downloaded on first transcript", null);
     }
 
     private static DoctorCheck VcRuntime(DoctorProbes p)

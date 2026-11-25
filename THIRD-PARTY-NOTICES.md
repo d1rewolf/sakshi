@@ -11,6 +11,45 @@
   https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz. The build script shows how it was configured.
 - FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
 
+## sherpa-onnx (speaker labels)
+
+- Used by `src/Sakshi.Speakers` to find who is speaking and to compare voices. It runs inside Sakshi, from the NuGet
+  package `org.k2fsa.sherpa.onnx`; its native libraries ship in the installers.
+- Version: 2.0.3.
+- Licence: Apache License 2.0. https://www.apache.org/licenses/LICENSE-2.0
+- Source: https://github.com/k2-fsa/sherpa-onnx
+
+## ONNX Runtime (inside sherpa-onnx)
+
+- The sherpa-onnx package includes ONNX Runtime, which runs the two speaker models below.
+- Licence: MIT.
+- Source: https://github.com/microsoft/onnxruntime
+
+## pyannote segmentation 3.0 (speaker model, downloaded on first use)
+
+- Finds where each person speaks. Not shipped: Sakshi downloads `pyannote-segmentation-3-0.onnx` the first time a
+  transcript needs speaker labels, into the `speakers` folder next to the speech model.
+- Model: pyannote/segmentation-3.0. https://huggingface.co/pyannote/segmentation-3.0
+- Licence: MIT. Copyright (c) 2022 CNRS.
+- ONNX export used: https://huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0
+
+## WeSpeaker ResNet34-LM (speaker model, downloaded on first use)
+
+- Turns a stretch of speech into a voiceprint. Not shipped: Sakshi downloads `wespeaker_en_voxceleb_resnet34_LM.onnx`
+  the first time a transcript needs speaker labels, into the `speakers` folder next to the speech model.
+- Model: WeSpeaker ResNet34-LM, trained on VoxCeleb. https://github.com/wenet-e2e/wespeaker
+- Training data: VoxCeleb. https://www.robots.ox.ac.uk/~vgg/data/voxceleb/
+- Licence: Creative Commons Attribution 4.0 (CC BY 4.0). https://creativecommons.org/licenses/by/4.0/
+- ONNX file: from the sherpa-onnx releases, https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
+
+## LibriSpeech (background for voice matching)
+
+- Only a mean voiceprint derived from LibriSpeech speech ships, in `src/Sakshi.Speakers/background.json`; no audio is
+  included. It is used to make voices easier to tell apart. How it was made: `tools/speakers/README.md`.
+- Corpus: LibriSpeech, https://www.openslr.org/12. Panayotov, Chen, Povey and Khudanpur, "LibriSpeech: an ASR corpus
+  based on public domain audio books", ICASSP 2015.
+- Licence: Creative Commons Attribution 4.0 (CC BY 4.0). https://creativecommons.org/licenses/by/4.0/
+
 ## Symbols Nerd Font Mono (bundled font)
 
 - File: `src/Sakshi.App/Assets/SymbolsNerdFontMono-Regular.ttf`, embedded in the app so the prompt glyphs show on macOS and Windows.

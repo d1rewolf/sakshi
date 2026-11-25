@@ -153,11 +153,111 @@ meetings/
       transcript.srt       subtitles, for a video player
       transcript.json      the transcript with timings, for programs
       audio.wav            the sound track the transcript was made from
+      speakers.json        who spoke, and their voiceprints (see "Who said what")
+      speakers/            a 5-second sound clip of each voice, to listen to
       transcribe.log       what the transcription did, for troubleshooting
 ```
 
 Spaces in names become underscores. `meeting.md` is plain Markdown: it opens in
 any editor or Markdown viewer, and an LLM can read it, pictures included.
+
+## Who said what
+
+Sakshi tells the voices in a meeting apart and puts a name on each line of
+`meeting.md`:
+
+```
+- Speakers: Ada, Ben?, Speaker 3
+
+> [00:02:10 → 00:02:14] **Ada:** Can everyone see my screen?
+> [00:02:15 → 00:02:19] **Speaker 3:** Yes.
+> [00:02:19 → 00:02:24] **Ben?:** Okay, so the totals are different.
+```
+
+- `Ada` is a name you gave.
+- `Ben?` is Sakshi's guess, from a voice it has heard before. It is only a
+  guess until you confirm it.
+- `Speaker 3` is a voice nobody has named yet.
+
+The **Transcript ready** notification says how many voices are left to name,
+for example `2 voices to name`.
+
+### Naming voices
+
+Sakshi never decides a name by itself. You do, once per person, and it
+recognises that voice in later meetings. `MEETING` is the meeting's folder, or
+just its name (Sakshi looks in your meetings folder and the archive):
+
+```
+sakshi speakers weekly_standup                 list the voices
+sakshi speakers weekly_standup S3=Ben          name voice 3 Ben
+sakshi speakers weekly_standup S3=             take the name off again
+sakshi speakers weekly_standup --accept        accept every guess (the ones with a ?)
+```
+
+The list shows each voice with how long it spoke, one line it said, and the
+path of a 5-second sound clip. Play the clip to hear who it is. Naming a voice
+rewrites `meeting.md`, `transcript.srt` and `transcript.json` for that meeting
+and tells you what changed.
+
+If one person got two voices, for example because they spoke from a phone and
+then from a laptop, give both the same name (`S2=Ada S5=Ada`) and Sakshi joins
+them.
+
+### Older meetings
+
+A meeting made before this existed, or with speaker labels off, has no labels.
+Add them with:
+
+```
+sakshi speakers --add weekly_standup
+```
+
+This runs the transcription again, so it takes about as long as the first
+time. It needs the meeting's recording (or its `audio.wav`) to still be in the
+folder.
+
+### The people Sakshi knows
+
+```
+sakshi voices                    list the people, with their voiceprints and meetings
+sakshi voices rename Ben Benjamin    rename a person (meetings already written keep the old name until you label them again)
+sakshi voices forget Ben         delete a person and all their voiceprints
+```
+
+### Turning it off
+
+Set `speakers` to `false` in `config.json` (see Settings) to stop labelling.
+For a single meeting, use `sakshi transcribe --no-speakers`, or
+`--speakers` to switch it on for one meeting when the setting is off. Without
+labels, your transcripts look the same as they did before.
+
+The first time, Sakshi downloads two small speech models (about 33 MB in
+all), so that transcript needs the internet. After that it works offline.
+Finding speakers adds a few minutes to each hour of meeting. If it cannot
+finish, you still get your transcript, without labels.
+
+### Where voiceprints are kept
+
+A voiceprint is a list of numbers that describes how someone's voice sounds.
+It can be used to recognise that person, so treat it as personal data.
+
+- Sakshi keeps voiceprints in two places on your computer only: in the
+  meeting's `speakers.json`, and in the voice library, `voices.json`:
+
+  | System | Voice library |
+  | --- | --- |
+  | Linux | `~/.local/share/sakshi/voices/voices.json` |
+  | macOS | `~/Library/Application Support/Sakshi/data/voices/voices.json` |
+  | Windows | `%LOCALAPPDATA%\Sakshi\voices\voices.json` |
+
+- Nothing leaves your computer: no audio, transcript or voiceprint is sent
+  anywhere. The two models are downloaded to your computer and do their work
+  there.
+- To delete a person, run `sakshi voices forget NAME`. Their voiceprints leave
+  the library. Meetings already written still show the name; the voiceprint in
+  that meeting's `speakers.json` goes when you delete the meeting.
+- Deleting a meeting folder deletes its `speakers.json` and clips with it.
 
 ## Finding an old meeting
 

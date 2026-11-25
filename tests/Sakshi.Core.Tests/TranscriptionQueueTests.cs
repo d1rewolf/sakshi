@@ -133,6 +133,40 @@ public sealed class TranscriptionQueueTests : IDisposable
         await Stop(cts, run);
     }
 
+    [Theory]
+    [InlineData(2, " · 2 voices to name")]
+    [InlineData(1, " · 1 voice to name")]
+    [InlineData(0, "")]
+    public async Task Success_BodyCountsVoicesStillToName(int unnamed, string suffix)
+    {
+        var job = Job("spk");
+        var speakers = new List<string> { "{\"id\":\"S1\",\"status\":\"named\",\"name\":\"Ada\"}" };
+        speakers.AddRange(Enumerable.Range(2, unnamed).Select(i =>
+            $"{{\"id\":\"S{i}\",\"status\":\"{(i % 2 == 0 ? "unknown" : "suggested")}\"}}"));
+        File.WriteAllText(Path.Combine(job.Dir, "speakers.json"), $"{{\"version\":1,\"speakers\":[{string.Join(",", speakers)}]}}");
+        _fake.Gate("spk").SetResult(0);
+        var queue = Queue(_fake);
+        using var cts = new CancellationTokenSource();
+        var run = queue.RunAsync(cts.Token);
+        queue.Enqueue(job);
+        await Until(() => _store.Load().Jobs.IsEmpty && _notifier.Sent.Count > 0);
+
+        Assert.Equal(Path.Combine(job.Dir, "meeting.md") + suffix, Assert.Single(_notifier.Sent).Body);
+        await Stop(cts, run);
+    }
+
+    [Fact]
+    public void SpeakerCount_is_zero_for_a_missing_or_broken_file()
+    {
+        var dir = Path.Combine(_root, "none");
+        Directory.CreateDirectory(dir);
+        Assert.Equal(0, SpeakerCount.ToName(dir));
+        File.WriteAllText(Path.Combine(dir, "speakers.json"), "{ not json");
+        Assert.Equal(0, SpeakerCount.ToName(dir));
+        File.WriteAllText(Path.Combine(dir, "speakers.json"), "{\"speakers\":5}");
+        Assert.Equal(0, SpeakerCount.ToName(dir));
+    }
+
     [Fact]
     public async Task Success_NotifiesThenHandsOff()
     {

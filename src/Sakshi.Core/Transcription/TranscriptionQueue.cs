@@ -144,7 +144,10 @@ public sealed class TranscriptionQueue(
             {
                 stage = "Hand-off";
                 // A notifier that throws must not cost the hand-off.
-                TryNotify($"Transcript ready: {job.Name}", Path.Combine(job.Dir, "meeting.md"), Urgency.Normal);
+                var toName = SpeakerCount.ToName(job.Dir);
+                TryNotify($"Transcript ready: {job.Name}",
+                    Path.Combine(job.Dir, "meeting.md") + (toName == 0 ? "" : $" · {toName} {(toName == 1 ? "voice" : "voices")} to name"),
+                    Urgency.Normal);
                 if (!string.IsNullOrWhiteSpace(job.HandOff))
                     await handOff.RunAsync(job.HandOff, job.Dir, job.Name, ct);
             }

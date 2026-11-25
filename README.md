@@ -30,6 +30,8 @@ hour-long meeting. Sakshi turns the meeting into something every LLM can read:
 - **Private until you share it.** Recording and transcription run on your
   computer. Nothing leaves it unless you send it somewhere.
 - **Searchable.** `sakshi find` searches every meeting you have recorded.
+- **Who said what.** Name a voice once and Sakshi labels it in later
+  meetings. Voiceprints stay on your computer.
 
 ## Download
 

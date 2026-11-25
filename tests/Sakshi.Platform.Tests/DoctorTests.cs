@@ -32,7 +32,7 @@ public sealed class DoctorTests
     public void Windows_with_nothing_installed_reports_every_check_with_its_fix()
     {
         var checks = Run(HostOs.Windows, Nothing());
-        Assert.Equal(["OBS installed", "OBS version", "OBS WebSocket", "ffmpeg", "Speech model", "VC++ runtime"],
+        Assert.Equal(["OBS installed", "OBS version", "OBS WebSocket", "ffmpeg", "Speech model", "Speaker models", "VC++ runtime"],
             checks.Select(c => c.Name));
         Assert.Equal("winget install OBSProject.OBSStudio", Get(checks, "OBS installed").Fix);
         Assert.Equal("winget install Gyan.FFmpeg", Get(checks, "ffmpeg").Fix);
@@ -121,7 +121,7 @@ public sealed class DoctorTests
         var checks = Run(HostOs.Linux, p);
         Assert.Equal("could not check (disk on fire)", Get(checks, "ffmpeg").Detail);
         Assert.False(Get(checks, "ffmpeg").Ok);
-        Assert.Equal(5, checks.Count);
+        Assert.Equal(6, checks.Count);
     }
 
     private static DoctorProbes WithObs(ObsLaunch launch, Func<string, IReadOnlyList<string>, ProcessResult>? run = null,
@@ -201,6 +201,27 @@ public sealed class DoctorTests
 
         var have = Get(Run(HostOs.Linux, Nothing() with { FilesIn = _ => ["/m/ggml-small.bin"] }), "Speech model");
         Assert.Equal("/m/ggml-small.bin", have.Detail);
+    }
+
+    [Fact]
+    public void Speaker_models_are_always_ok_and_say_whether_they_are_there()
+    {
+        var none = Get(Run(HostOs.Linux, Nothing()), "Speaker models");
+        Assert.True(none.Ok);
+        Assert.Equal("downloaded on first transcript", none.Detail);
+
+        var dir = Path.Combine(Paths.ModelsDir, "speakers");
+        var one = Nothing(new() { [Slashes(Path.Combine(dir, "pyannote-segmentation-3-0.onnx"))] = "" });
+        Assert.Equal("downloaded on first transcript", Get(Run(HostOs.Linux, one), "Speaker models").Detail);
+
+        var both = Nothing(new()
+        {
+            [Slashes(Path.Combine(dir, "pyannote-segmentation-3-0.onnx"))] = "",
+            [Slashes(Path.Combine(dir, "wespeaker_en_voxceleb_resnet34_LM.onnx"))] = "",
+        });
+        var have = Get(Run(HostOs.Linux, both), "Speaker models");
+        Assert.True(have.Ok);
+        Assert.Equal(dir, have.Detail);
     }
 
     [Fact]
