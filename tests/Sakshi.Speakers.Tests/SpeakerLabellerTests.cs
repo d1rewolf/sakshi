@@ -167,7 +167,7 @@ public sealed class SpeakerLabellerTests : IDisposable
         Assert.Equal(SpeakerStatus.Suggested, s1.Status);
         Assert.Equal("Ada", s1.Suggestion);
         Assert.Equal(1.0, s1.Score!.Value, 3);
-        Assert.Null(s1.PersonId);
+        Assert.Equal(lib.Find("Ada")!.Id, s1.PersonId);
         Assert.Null(s1.Name);
         Assert.Equal("Ada?", s1.Label);
     }
@@ -352,5 +352,39 @@ public sealed class SpeakerLabellerTests : IDisposable
         Segment[] segs = [new Segment(T(0), T(9), " [Music]"), Seg(9, 12, "Hello there all.")];
         Run(d, p, segs, Audio(12));
         Assert.Equal("Hello there all.", SpeakersFile.Read(SpeakersJson).Speakers[0].Sample);
+    }
+
+    [Fact]
+    public void BackgroundUpdateKeepsAChangeMadeToTheLibraryMeanwhile()
+    {
+        var lib = VoiceLibrary.Load(Voices);
+        lib.Teach("Ada", V(0), "2026-11-01-Sun/other", "S3", DateTimeOffset.UnixEpoch);
+        lib.Save();
+        var stale = VoiceLibrary.Load(Voices);
+        // While the meeting is being labelled, Ada is forgotten.
+        var other = VoiceLibrary.Load(Voices);
+        other.Forget("Ada");
+        other.Save();
+
+        var d = new FakeDiarizer(new PieceTurn(0, 10, 0));
+        Run(d, new FakePrinter(new() { [0] = V(1) }), [Seg(0, 10)], Audio(10), stale, writable: true);
+        var back = VoiceLibrary.Load(Voices);
+        Assert.Empty(back.People);
+        Assert.Equal(1, back.BackgroundSum.Count);
+    }
+
+    [Fact]
+    public void LibraryUnreadableAtSaveTimeIsLeftAlone()
+    {
+        var lib = VoiceLibrary.Load(Voices);
+        Directory.CreateDirectory(Path.GetDirectoryName(Voices)!);
+        File.WriteAllText(Voices, "nope");
+        var output = new StringWriter();
+        var d = new FakeDiarizer(new PieceTurn(0, 10, 0));
+        var r = Run(d, new FakePrinter(new() { [0] = V(1) }), [Seg(0, 10)], Audio(10), lib, writable: true, stdout: output);
+        Assert.Equal(1, r.Speakers);
+        Assert.Equal("nope", File.ReadAllText(Voices));
+        Assert.StartsWith("Warning: Cannot read the voice library " + Voices, output.ToString());
+        Assert.Contains("; voices are not saved this time", output.ToString());
     }
 }

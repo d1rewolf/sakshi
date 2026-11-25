@@ -138,6 +138,8 @@ In the meeting folder:
 ```
 
 `status` is `named` (by the user), `suggested` (`suggestion` and `score` hold the suggestion) or `unknown`.
+`personId` is the library person's id: the named person, or the suggested one (so accepting a suggestion teaches that
+person even after a `voices rename`); `null` when unknown.
 `voiceprint` is the raw vector, so that a later background mean can be applied. `sample` is the speaker's longest
 segment text, trimmed and cut to 120 characters. `source` and `frames` are what meeting.md was built from, so it can
 be rebuilt exactly; `frames` is `null` when the meeting has no frames section (`-F none` or `--markdown-only`).
@@ -162,6 +164,12 @@ be rebuilt exactly; `frames` is `null` when the meeting has no frames section (`
 
 - Only the user teaches the library: naming a speaker or accepting a suggestion adds that speaker's voiceprint.
   Suggestions never add one, so a wrong match cannot reinforce itself.
+- A voiceprint is stored with its meeting and speaker id. Teaching first removes any voiceprint already stored for the
+  same meeting and speaker, from whichever person holds it, so correcting a name (`S1=Ada`, then `S1=Ben`) fixes what
+  was learned and naming twice keeps one voiceprint. Taking a name off (`S1=`) removes that one voiceprint. A person
+  left with no voiceprints stays in the library (listed with 0) and is never suggested. Joining moves nothing.
+- Labelling adds to the background sum. It reads the library again just before saving and applies only that update,
+  so a name taught or a person forgotten meanwhile is kept; if the file cannot be read then, it is left alone.
 - If the file exists but cannot be read (bad JSON, wrong version), labelling still runs as if it were empty but
   never writes it, and the `speakers`/`voices` commands stop with an error naming the file. Nothing overwrites a file
   Sakshi could not read.
@@ -177,7 +185,7 @@ match wins).
 ```
 sakshi speakers MEETING                 list the speakers
 sakshi speakers MEETING S3=Gregory ...  name speakers; the same name on two speakers joins them
-sakshi speakers MEETING S3=             take a name off (back to unknown); nothing is removed from the library
+sakshi speakers MEETING S3=             take a name off (back to unknown) and forget the voiceprint it taught
 sakshi speakers MEETING --accept        accept every suggestion
 sakshi speakers --add MEETING ...       label a meeting transcribed without speaker labels
 sakshi voices                           list people, with how many voiceprints and meetings each has

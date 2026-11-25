@@ -146,4 +146,43 @@ public sealed class VoiceLibraryTests : IDisposable
         lib.AddToBackground([[1f]]);
         Assert.Equal([2.0], lib.BackgroundSum.Sum!);
     }
+
+    [Fact]
+    public void TeachReplacesAnEarlierPrintOfTheSameMeetingSpeaker()
+    {
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        lib.Teach("Ada", [1f, 0f], "d/two", "S1", T0);
+        lib.Teach("Ben", [0f, 1f], "d/one", "S1", T0.AddMinutes(1));
+        Assert.Equal(["d/two"], lib.Find("Ada")!.Prints.Select(p => p.Meeting));
+        Assert.Equal(["d/one"], lib.Find("Ben")!.Prints.Select(p => p.Meeting));
+
+        lib.Teach("Ben", [0f, 1f], "d/one", "S1", T0.AddMinutes(2));
+        Assert.Single(lib.Find("Ben")!.Prints);
+    }
+
+    [Fact]
+    public void UnteachRemovesThatPrintAndKeepsThePerson()
+    {
+        var lib = VoiceLibrary.Load(File_);
+        lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        Assert.True(lib.Unteach("d/one", "S1"));
+        Assert.Empty(lib.Find("Ada")!.Prints);
+        Assert.False(lib.Unteach("d/one", "S1"));
+        lib.Save();
+        Assert.Empty(VoiceLibrary.Load(File_).Find("Ada")!.Prints);
+    }
+
+    [Fact]
+    public void TeachByIdFollowsARename()
+    {
+        var lib = VoiceLibrary.Load(File_);
+        var ada = lib.Teach("Ada", [1f, 0f], "d/one", "S1", T0);
+        lib.Rename("Ada", "Adah");
+        var p = lib.Teach("Ada", [1f, 0f], "d/two", "S2", T0, ada.Id);
+        Assert.Equal(ada.Id, p.Id);
+        Assert.Equal("Adah", p.Name);
+        Assert.Single(lib.People);
+        Assert.Equal(2, p.Prints.Count);
+    }
 }

@@ -102,4 +102,17 @@ public sealed class VoicesCommandTests : IDisposable
         Assert.Equal(2, Run("forget").Code);
         Assert.Contains("sakshi voices", Run("bogus").Err);
     }
+
+    [Fact]
+    public void RenameTrimsTheNewNameAndRefusesAnEmptyOne()
+    {
+        Seed();
+        var before = File.ReadAllBytes(_file);
+        var r = Run("rename", "Ada", "  ");
+        Assert.Equal(2, r.Code);
+        Assert.Contains("sakshi voices rename OLD NEW", r.Err);
+        Assert.Equal(before, File.ReadAllBytes(_file));
+        Assert.Equal(0, Run("rename", "Ada", " Ann ").Code);
+        Assert.Equal("Ann", VoiceLibrary.Load(_file).People[0].Name);
+    }
 }

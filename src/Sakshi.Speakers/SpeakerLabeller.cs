@@ -48,11 +48,19 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
 
         if (libraryWritable)
         {
-            library.AddToBackground(prints.Values);
-            try { library.Save(); }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            // Labelling takes minutes; the library may have changed on disk meanwhile (a name taught, a person
+            // forgotten). Only the background update is applied, to the library as it is now.
+            VoiceLibrary? current = null;
+            try { current = library.Reload(); }
+            catch (VoiceLibraryException e) { stdout.WriteLine($"Warning: {e.Message}; voices are not saved this time"); }
+            if (current is not null)
             {
-                stdout.WriteLine($"Warning: voices not saved: {e.Message}");
+                current.AddToBackground(prints.Values);
+                try { current.Save(); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    stdout.WriteLine($"Warning: voices not saved: {e.Message}");
+                }
             }
         }
 
@@ -183,7 +191,7 @@ public sealed partial class SpeakerLabeller(IDiarizer diarizer, IVoiceprinter pr
         var sample = longest?.Text.Trim() ?? "";
         if (sample.Length > SpeakerSettings.SampleChars) sample = sample[..SpeakerSettings.SampleChars];
         var status = s.Suggestion is null ? SpeakerStatus.Unknown : SpeakerStatus.Suggested;
-        return new SpeakerEntry(s.Id, status, null, null, s.Suggestion?.Name, s.Suggestion?.Score,
+        return new SpeakerEntry(s.Id, status, null, s.Suggestion?.PersonId, s.Suggestion?.Name, s.Suggestion?.Score,
             seconds, sample, $"speakers/{s.Id}.wav", s.Raw);
     }
 

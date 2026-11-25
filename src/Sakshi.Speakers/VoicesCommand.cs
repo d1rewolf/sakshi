@@ -17,7 +17,8 @@ public static class VoicesCommand
             stdout.WriteLine(Usage);
             return 0;
         }
-        var ok = args.Count == 0 || (args[0] == "rename" && args.Count == 3) || (args[0] == "forget" && args.Count == 2);
+        var ok = args.Count == 0 || (args[0] == "rename" && args.Count == 3 && args[2].Trim().Length > 0)
+            || (args[0] == "forget" && args.Count == 2);
         if (!ok)
         {
             stderr.WriteLine(Usage);
@@ -48,9 +49,10 @@ public static class VoicesCommand
                     stderr.WriteLine($"No voice named {args[1]}.");
                     return 1;
                 }
-                library.Rename(args[1], args[2]);
+                var newName = args[2].Trim();
+                library.Rename(args[1], newName);
                 library.Save();
-                stdout.WriteLine($"Renamed {args[1]} to {args[2]}");
+                stdout.WriteLine($"Renamed {args[1]} to {newName}");
                 return 0;
             }
             var person = library.Find(args[1]);

@@ -125,7 +125,45 @@ public sealed class SpeakersCommandTests : IDisposable
         Assert.Null(s3.Name);
         Assert.Null(s3.PersonId);
         Assert.Contains("Speaker 3", Md);
-        Assert.Equal(before, File.ReadAllBytes(_voices));
+        // The person stays; the voiceprint taught from this meeting's S3 goes.
+        Assert.Empty(VoiceLibrary.Load(_voices).Find("Cy")!.Prints);
+    }
+
+    [Fact]
+    public void CorrectingANameMovesThePrint()
+    {
+        Run(_dir, "S1=Ada");
+        Assert.Equal(0, Run(_dir, "S1=Ben").Code);
+        var lib = VoiceLibrary.Load(_voices);
+        Assert.Empty(lib.Find("Ada")!.Prints);
+        var ben = Assert.Single(lib.Find("Ben")!.Prints);
+        Assert.Equal(("2026-01-05-Mon/standup", "S1"), (ben.Meeting, ben.Speaker));
+    }
+
+    [Fact]
+    public void NamingTwiceKeepsOnePrint()
+    {
+        Run(_dir, "S1=Ada");
+        Run(_dir, "S1=Ada");
+        Assert.Single(VoiceLibrary.Load(_voices).Find("Ada")!.Prints);
+    }
+
+    [Fact]
+    public void AcceptTeachesTheSuggestedPersonAfterARename()
+    {
+        var lib = VoiceLibrary.Load(_voices);
+        var ben = lib.Teach("Ben", [0f, 1f], "x/y", "S1", Now);
+        lib.Rename("Ben", "Benedict");
+        lib.Save();
+        var f = Sf;
+        f = f with { Speakers = f.Speakers.Select(x => x.Id == "S2" ? x with { PersonId = ben.Id } : x).ToList() };
+        f.Write(Path.Combine(_dir, "speakers.json"));
+
+        Assert.Equal("S2 is now Benedict\n", Run(_dir, "--accept").Out.Replace("\r", ""));
+        var back = VoiceLibrary.Load(_voices);
+        Assert.Single(back.People);
+        Assert.Equal(2, back.Find("Benedict")!.Prints.Count);
+        Assert.Equal(ben.Id, Sf.Speakers.Single(s => s.Id == "S2").PersonId);
     }
 
     [Fact]

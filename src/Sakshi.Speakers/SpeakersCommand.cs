@@ -10,7 +10,7 @@ public static class SpeakersCommand
         usage:
           sakshi speakers MEETING                 list the speakers
           sakshi speakers MEETING S3=Ada ...      name speakers; the same name on two speakers joins them
-          sakshi speakers MEETING S3=             take a name off (back to unknown); nothing is removed from the library
+          sakshi speakers MEETING S3=             take a name off (back to unknown) and forget the voiceprint it taught
           sakshi speakers MEETING --accept        accept every suggestion
           sakshi speakers --add MEETING ...       label a meeting transcribed without speaker labels
         """;
@@ -122,7 +122,7 @@ public static class SpeakersCommand
         var joinedAway = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var clips = new List<string>();
 
-        void Name(string id, string text)
+        void Name(string id, string text, string? personId = null)
         {
             if (joinedAway.TryGetValue(id, out var into))
                 throw new Stop(2, $"{id.ToUpperInvariant()} was joined into {into} earlier in this command");
@@ -130,16 +130,18 @@ public static class SpeakersCommand
             if (i < 0) throw new Stop(2, $"no speaker {id} in {dir} ({IdRange(entries.Select(e => e.Id).ToList())})");
             var e = entries[i];
             text = text.Trim();
+            try { library ??= VoiceLibrary.Load(voicesFile); }
+            catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
             if (text.Length == 0)
             {
+                // What Sakshi learned from this voice goes too; the person stays, even with no voiceprints left.
+                if (library.Unteach(meeting, e.Id)) taught = true;
                 entries[i] = e with { Status = SpeakerStatus.Unknown, Name = null, PersonId = null, Suggestion = null, Score = null };
                 lines.Add($"{e.Id} is now unknown");
                 return;
             }
-            try { library ??= VoiceLibrary.Load(voicesFile); }
-            catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
             Person person;
-            try { person = library.Teach(text, e.Voiceprint, meeting, e.Id, now); }
+            try { person = library.Teach(text, e.Voiceprint, meeting, e.Id, now, personId); }
             catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
             taught = true;
             var named = e with
@@ -179,7 +181,7 @@ public static class SpeakersCommand
         {
             if (text is not null) { Name(id, text); continue; }
             foreach (var s in entries.Where(e => e.Status == SpeakerStatus.Suggested && e.Suggestion is not null).ToList())
-                if (entries.Any(o => o.Id == s.Id)) Name(s.Id, s.Suggestion!);
+                if (entries.Any(o => o.Id == s.Id)) Name(s.Id, s.Suggestion!, s.PersonId);
         }
 
         if (lines.Count == 0)
