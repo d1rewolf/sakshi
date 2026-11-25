@@ -77,4 +77,48 @@ public class WordAlignerTests
         Word[] w = [W(0, 1, " a."), W(1, 2, " b")];
         Assert.Equal(["A", "A"], WordAligner.Snap(w, ["A", "A"]));
     }
+
+    [Fact]
+    public void Assign_falls_back_to_nearest_turn_when_none_is_near()
+    {
+        var r = WordAligner.Assign([W(10, 11, " a"), W(40, 41, " b")], [new SpeakerTurn(0, 5, "S1"), new SpeakerTurn(60, 70, "S2")]);
+        Assert.Equal(["S1", "S2"], r);
+    }
+
+    [Fact]
+    public void Assign_unsorted_turns_and_ties_go_to_earlier_start()
+    {
+        // Word at 5.0 is 1 s from both turns; the later-listed turn starts earlier and wins.
+        var r = WordAligner.Assign([W(4.9, 5.1, " a")], [new SpeakerTurn(6, 8, "S2"), new SpeakerTurn(0, 4, "S1")]);
+        Assert.Equal(["S1"], r);
+    }
+
+    static string[] Snap(string[] speakers, params string[] texts) =>
+        WordAligner.Snap(texts.Select((t, i) => W(i, i + 0.5, t)).ToArray(), speakers);
+
+    [Fact]
+    public void Snap_change_at_index_one()
+        => Assert.Equal(["A", "A", "A", "B"], Snap(["A", "B", "B", "B"], " x", " y", " z.", " w"));
+
+    [Fact]
+    public void Snap_change_at_last_index()
+        => Assert.Equal(["A", "A", "B", "B"], Snap(["A", "A", "A", "B"], " a", " b.", " c", " d"));
+
+    [Fact]
+    public void Snap_change_already_at_sentence_start_stays()
+        => Assert.Equal(["A", "B", "B"], Snap(["A", "B", "B"], " a.", " b", " c"));
+
+    [Fact]
+    public void Snap_tie_goes_to_earlier_sentence_start()
+        => Assert.Equal(["A", "A", "B", "B", "B"], Snap(["A", "A", "A", "B", "B"], " a", " b.", " c", " d.", " e"));
+
+    [Fact]
+    public void Snap_two_changes_close_together()
+        => Assert.Equal(["A", "A", "A", "B", "B", "B", "A"],
+            Snap(["A", "A", "B", "B", "B", "A", "A"], " a", " b", " c.", " d", " e", " f.", " g"));
+
+    [Fact]
+    public void Snap_one_word_run_inside_sentence_is_left_alone()
+        // A one-word run inside a sentence is treated as noise: no sentence start nearby, so nothing moves.
+        => Assert.Equal(["A", "A", "B", "A", "A"], Snap(["A", "A", "B", "A", "A"], " a", " b", " c", " d", " e."));
 }

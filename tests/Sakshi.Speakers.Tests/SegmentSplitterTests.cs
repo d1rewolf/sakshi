@@ -56,4 +56,18 @@ public class SegmentSplitterTests
         var r = SegmentSplitter.Split([a, b], ["B"]);
         Assert.Equal(["B", "B"], r.Select(s => s.Speaker));
     }
+
+    [Fact]
+    public void Three_runs_middle_uses_word_times()
+    {
+        Word[] w = [W(0.1, 1, " a"), W(1.2, 2, " b"), W(2, 2.8, " c"), W(3.1, 4, " d")];
+        var seg = new Segment(T(0), T(4.5), " a b c d") { Words = w };
+        var r = SegmentSplitter.Split([seg], ["A", "B", "B", "C"]);
+        Assert.Equal(3, r.Count);
+        Assert.Equal((T(0), T(1)), (r[0].Start, r[0].End));
+        Assert.Equal((T(1.2), T(2.8)), (r[1].Start, r[1].End));
+        Assert.Equal(" b c", r[1].Text);
+        Assert.Equal((T(3.1), T(4.5)), (r[2].Start, r[2].End));
+        Assert.Equal(["A", "B", "C"], r.Select(x => x.Speaker));
+    }
 }

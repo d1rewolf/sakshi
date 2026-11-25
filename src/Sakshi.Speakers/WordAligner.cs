@@ -6,42 +6,42 @@ public static class WordAligner
 {
     const double NearSeconds = 1.0;
 
-    /// <summary>Speaker for each word. All null only when there are no turns.</summary>
+    /// <summary>
+    /// Speaker for each word. Turns need not be sorted. A word whose midpoint is inside a turn gets it
+    /// (the latest-starting wins on overlap); otherwise the nearest turn within a second, with distance
+    /// ties going to the turn that starts earlier. Other words take the previous word's speaker (leading
+    /// ones the next assigned word's). If no word is near any turn, each word gets its nearest turn.
+    /// All null only when there are no turns.
+    /// </summary>
     public static string[] Assign(IReadOnlyList<Word> words, IReadOnlyList<SpeakerTurn> turns)
     {
         var result = new string[words.Count];
         if (turns.Count == 0 || words.Count == 0) return result;
 
         var assigned = new bool[words.Count];
+        var nearest = new string[words.Count];
         for (var i = 0; i < words.Count; i++)
         {
             var mid = (words[i].Start.TotalSeconds + words[i].End.TotalSeconds) / 2;
             SpeakerTurn? pick = null;
             foreach (var t in turns)
-                if (t.Start <= mid && mid <= t.End && (pick is null || t.Start >= pick.Start)) pick = t;
-            if (pick is null)
+                if (t.Start <= mid && mid <= t.End && (pick is null || t.Start > pick.Start)) pick = t;
+            if (pick is not null) { result[i] = nearest[i] = pick.Speaker; assigned[i] = true; continue; }
+
+            var best = double.MaxValue;
+            foreach (var t in turns)
             {
-                var best = double.MaxValue;
-                foreach (var t in turns)
-                {
-                    var d = mid < t.Start ? t.Start - mid : mid - t.End;
-                    if (d < best) { best = d; pick = t; }
-                }
-                if (best > NearSeconds) pick = null;
+                var d = mid < t.Start ? t.Start - mid : mid - t.End;
+                if (d < best || (d == best && t.Start < pick!.Start)) { best = d; pick = t; }
             }
-            if (pick is not null) { result[i] = pick.Speaker; assigned[i] = true; }
+            nearest[i] = pick!.Speaker;
+            if (best <= NearSeconds) { result[i] = pick.Speaker; assigned[i] = true; }
         }
 
-        for (var i = 1; i < result.Length; i++)
-            if (!assigned[i]) result[i] = result[i - 1];
         var first = Array.FindIndex(assigned, a => a);
-        if (first < 0)
-        {
-            // No word is near any turn: fall back to the nearest turn for all.
-            var fallback = turns[0].Speaker;
-            Array.Fill(result, fallback);
-            return result;
-        }
+        if (first < 0) return nearest;
+        for (var i = first + 1; i < result.Length; i++)
+            if (!assigned[i]) result[i] = result[i - 1];
         for (var i = 0; i < first; i++) result[i] = result[first];
         return result;
     }
