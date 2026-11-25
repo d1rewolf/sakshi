@@ -17,9 +17,14 @@ public sealed class TrayUiTests : IDisposable
     private static readonly TrayIconState[] States =
         [TrayIconState.Idle, TrayIconState.Recording, TrayIconState.RecordingDim, TrayIconState.Busy, TrayIconState.Transcribing];
 
+    // Inside the headless session: an Avalonia object made on a test thread between two sessions' dispatches makes
+    // that thread Avalonia's UI thread, and the next headless test then fails with "a different thread owns it".
     [Fact]
-    public void The_tray_icon_has_a_tooltip_before_it_is_shown() =>
+    public Task The_tray_icon_has_a_tooltip_before_it_is_shown() => HeadlessHost.Run(() =>
+    {
         Assert.Equal("Sakshi", TrayApp.NewIcon(new Avalonia.Controls.NativeMenu()).ToolTipText);
+        return Task.CompletedTask;
+    });
 
     [Fact]
     public void The_live_transcript_setting_is_off_unless_chosen() =>
