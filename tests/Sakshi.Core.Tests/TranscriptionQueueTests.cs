@@ -226,6 +226,58 @@ public sealed class TranscriptionQueueTests : IDisposable
         await Stop(cts, run);
     }
 
+    /// <summary>Exits non-zero like a crash in the speaker step: after (or, with old=true, without) writing meeting.md.</summary>
+    private sealed class CrashingTranscriber(bool old) : ITranscriber
+    {
+        public Task<int> RunAsync(TranscriptionJob job, Action<int> onStarted, CancellationToken ct)
+        {
+            var md = Path.Combine(job.Dir, "meeting.md");
+            if (old)
+            {
+                File.WriteAllText(md, "# from an earlier run");
+                File.SetLastWriteTimeUtc(md, DateTime.UtcNow.AddHours(-1));
+            }
+            onStarted(4242);
+            if (!old) File.WriteAllText(md, "# Meeting");
+            return Task.FromResult(139);
+        }
+    }
+
+    [Fact]
+    public async Task NonZeroExit_AfterMeetingMdWasWritten_CountsAsDone()
+    {
+        Environment.SetEnvironmentVariable("TEST_ARGS_FILE", _argsFile);
+        var job = Job("crash", $"{TestHelper.Name} requirements new");
+        var queue = Queue(new CrashingTranscriber(old: false));
+        using var cts = new CancellationTokenSource();
+        var run = queue.RunAsync(cts.Token);
+        queue.Enqueue(job);
+        await Until(() => ArgsWritten() && _store.Load().Jobs.IsEmpty && _notifier.Sent.Count > 0);
+
+        var n = Assert.Single(_notifier.Sent);
+        Assert.Equal("Transcript ready: crash", n.Headline);
+        Assert.Equal(Path.Combine(job.Dir, "meeting.md") + " · speaker labels skipped", n.Body);
+        Assert.Equal(Urgency.Normal, n.Urgency);
+        Assert.Equal(["requirements", "new", job.Dir], File.ReadAllLines(_argsFile));
+        await Stop(cts, run);
+    }
+
+    [Fact]
+    public async Task NonZeroExit_WithAnOlderMeetingMd_Fails()
+    {
+        Environment.SetEnvironmentVariable("TEST_ARGS_FILE", _argsFile);
+        var job = Job("stale", $"{TestHelper.Name} requirements new");
+        var queue = Queue(new CrashingTranscriber(old: true));
+        using var cts = new CancellationTokenSource();
+        var run = queue.RunAsync(cts.Token);
+        queue.Enqueue(job);
+        await Until(() => _store.Load().Jobs.IsEmpty && _notifier.Sent.Count > 0);
+
+        Assert.Equal("Transcription failed: stale", Assert.Single(_notifier.Sent).Headline);
+        Assert.False(File.Exists(_argsFile));
+        await Stop(cts, run);
+    }
+
     [Fact]
     public async Task FinishedJob_DoesNotClearRecordingCapture()
     {

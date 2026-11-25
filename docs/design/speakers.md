@@ -229,6 +229,9 @@ transcript.json carries none of speakers.json's ids, the `speakers` command refu
 ## Doctor and notices
 
 - `sakshi doctor` gains "Speaker models": present, or "downloaded on first transcript".
+- The tray's transcription queue counts a run that exits non-zero after writing meeting.md (newer than the run's
+  start) as done, since only the speaker step comes after: it notifies `Transcript ready: NAME` with the body
+  `<meeting.md path> · speaker labels skipped` and runs the hand-off as usual.
 - THIRD-PARTY-NOTICES gains sherpa-onnx (Apache-2.0), ONNX Runtime (MIT), pyannote segmentation 3.0 (MIT),
   WeSpeaker ResNet34-LM (CC BY 4.0, trained on VoxCeleb) and LibriSpeech (CC BY 4.0, for the background mean).
 - The user guide gets a "Who said what" section: what it does, naming, `--add`, turning it off, and where voiceprints

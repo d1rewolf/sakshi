@@ -117,6 +117,7 @@ public sealed class TranscriptionQueue(
         try
         {
             bool ok;
+            var labelsSkipped = false;
             if (_adopted.Contains(job.Id))
             {
                 while (job.Pid is { } pid && processAlive(pid, job.Started)) await _delay(PollInterval, ct);
@@ -138,6 +139,12 @@ public sealed class TranscriptionQueue(
                     Modify(job.Id, j => j with { Pid = pid, Started = now });
                 }, ct);
                 ok = code == 0;
+                if (!ok && WroteMeetingMd(job.Id, job.Dir))
+                {
+                    // The transcript is complete; the run died after it, in the speaker step (native code).
+                    ok = true;
+                    labelsSkipped = true;
+                }
             }
 
             if (ok)
@@ -146,7 +153,8 @@ public sealed class TranscriptionQueue(
                 // A notifier that throws must not cost the hand-off.
                 var toName = SpeakerCount.ToName(job.Dir);
                 TryNotify($"Transcript ready: {job.Name}",
-                    Path.Combine(job.Dir, "meeting.md") + (toName == 0 ? "" : $" · {toName} {(toName == 1 ? "voice" : "voices")} to name"),
+                    Path.Combine(job.Dir, "meeting.md") + (labelsSkipped ? " · speaker labels skipped"
+                        : toName == 0 ? "" : $" · {toName} {(toName == 1 ? "voice" : "voices")} to name"),
                     Urgency.Normal);
                 if (!string.IsNullOrWhiteSpace(job.HandOff))
                     await handOff.RunAsync(job.HandOff, job.Dir, job.Name, ct);
@@ -168,6 +176,14 @@ public sealed class TranscriptionQueue(
             else TryNotify($"Hand-off failed: {job.Name}", $"The meeting is untouched in {job.Dir}; see handoff.log", Urgency.Critical);
         }
         Remove(job.Id);
+    }
+
+    /// <summary>True when meeting.md exists and was written after this job's run started.</summary>
+    private bool WroteMeetingMd(Guid id, string dir)
+    {
+        var md = Path.Combine(dir, "meeting.md");
+        var started = store.Load().Jobs.FirstOrDefault(j => j.Id == id)?.Started;
+        return started is { } s && File.Exists(md) && File.GetLastWriteTimeUtc(md) >= s.UtcDateTime;
     }
 
     private void NotifyFailed(TranscriptionJob job) =>
