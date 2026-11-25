@@ -79,6 +79,10 @@ public sealed class VoiceLibrary
 
     public Person Teach(string name, float[] raw, string meeting, string speaker, DateTimeOffset now)
     {
+        var width = _sum?.Length ?? _people.SelectMany(p => p.Prints).Select(p => p.Vector.Length).FirstOrDefault();
+        if (width > 0 && raw.Length != width)
+            throw new VoiceLibraryException(
+                $"The voice library {_path} holds voiceprints of {width} values, but this speaker's has {raw.Length}; it was made with a different voice model.");
         var print = new StoredPrint((float[])raw.Clone(), meeting, speaker, now);
         var existing = Find(name);
         var prints = existing is null ? [] : existing.Prints.ToList();

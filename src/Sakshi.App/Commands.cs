@@ -48,7 +48,8 @@ internal static class Commands
         commands:
           sakshi find [--all] WORD...      search every meeting (and the archive)
           sakshi index [--rebuild]         refresh the search index
-          sakshi speakers MEETING [S1=NAME ...]  list, name and join a meeting's speakers
+          sakshi speakers MEETING [S1=NAME ...]
+                                           list, name and join a meeting's speakers
           sakshi voices                    list the people the voice library knows
           sakshi transcribe [options] FILE transcribe a video (see: sakshi transcribe -h)
           sakshi status                    one-line JSON for the bar widget

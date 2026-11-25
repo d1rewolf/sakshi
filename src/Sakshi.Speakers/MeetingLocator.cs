@@ -14,12 +14,16 @@ public static class MeetingLocator
             foreach (var root in roots)
             {
                 if (!Directory.Exists(root)) continue;
-                foreach (var day in Directory.EnumerateDirectories(root))
+                try
                 {
-                    var dir = Path.Combine(day, name);
-                    if (Directory.Exists(dir))
-                        found.Add((dir, Path.GetFileName(day), Directory.GetLastWriteTimeUtc(dir)));
+                    foreach (var day in Directory.EnumerateDirectories(root))
+                    {
+                        var dir = Path.Combine(day, name);
+                        if (Directory.Exists(dir))
+                            found.Add((dir, Path.GetFileName(day), Directory.GetLastWriteTimeUtc(dir)));
+                    }
                 }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             }
         if (found.Count == 0)
             throw new UsageException($"no meeting named {arg} under {string.Join(", ", roots)}");

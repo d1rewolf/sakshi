@@ -53,7 +53,7 @@ public sealed class SpeakersCommandTests : IDisposable
         var r = Run(_dir);
         Assert.Equal(0, r.Code);
         var lines = r.Out.TrimEnd().Split('\n');
-        Assert.Equal("S1  unknown      7:12  \"Can you see my screen?\"", lines[0]);
+        Assert.Equal("S1  unknown     7:12  \"Can you see my screen?\"", lines[0]);
         Assert.Equal("    " + Path.Combine(_dir, "speakers", "S1.wav"), lines[1]);
         Assert.StartsWith("S2  Ben? (0.74)", lines[2]);
         Assert.Contains("1:00", lines[2]);
@@ -175,9 +175,110 @@ public sealed class SpeakersCommandTests : IDisposable
     public void UnreadableTranscriptNamesTheFile()
     {
         File.WriteAllText(Path.Combine(_dir, "transcript.json"), "{\"transcription\":[{}]}");
+        var before = Snapshot();
         var r = Run(_dir, "S2=Ada");
         Assert.Equal(1, r.Code);
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
         Assert.Contains("Error: cannot read " + Path.Combine(_dir, "transcript.json"), r.Err);
+    }
+
+    [Fact]
+    public void ChainOfJoinsEndsWithTheLowestId()
+    {
+        var r = Run(_dir, "S2=Ada", "S3=Ada", "S1=Ada");
+        Assert.Equal(0, r.Code);
+        Assert.Contains("S3 joined S2 (Ada)", r.Out);
+        Assert.Contains("S2 joined S1 (Ada)", r.Out);
+        var only = Assert.Single(Sf.Speakers);
+        Assert.Equal("S1", only.Id);
+        Assert.Equal(636, only.Seconds);
+        var json = File.ReadAllText(Path.Combine(_dir, "transcript.json"));
+        Assert.DoesNotContain("\"S2\"", json);
+        Assert.DoesNotContain("\"S3\"", json);
+        Assert.Equal(4, json.Split("\"speaker\": \"S1\"").Length - 1);
+        Assert.False(File.Exists(Path.Combine(_dir, "speakers", "S2.wav")));
+        Assert.False(File.Exists(Path.Combine(_dir, "speakers", "S3.wav")));
+        Assert.True(File.Exists(Path.Combine(_dir, "speakers", "S1.wav")));
+    }
+
+    [Fact]
+    public void AssigningAJoinedAwaySpeakerIsAnErrorAndChangesNothing()
+    {
+        var before = Snapshot();
+        var r = Run(_dir, "S1=Ada", "S3=Ada", "S3=Cy");
+        Assert.Equal(2, r.Code);
+        Assert.Contains("S3 was joined into S1 earlier in this command", r.Err);
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
+        Assert.True(File.Exists(Path.Combine(_dir, "speakers", "S3.wav")));
+        Assert.False(File.Exists(_voices));
+    }
+
+    [Fact]
+    public void FailedLibrarySaveLeavesTheMeetingAndClips()
+    {
+        Directory.CreateDirectory(_voices); // a folder where the file should be: Save cannot rename over it
+        var before = Snapshot();
+        var r = Run(_dir, "S1=Ada", "S3=Ada");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("Error:", r.Err);
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
+        Assert.True(File.Exists(Path.Combine(_dir, "speakers", "S3.wav")));
+    }
+
+    [Fact]
+    public void BrokenSpeakersJsonNamesTheFile()
+    {
+        var path = Path.Combine(_dir, "speakers.json");
+        File.WriteAllText(path, "nope");
+        var before = Snapshot();
+        var r = Run(_dir, "S2=Ada");
+        Assert.Equal(1, r.Code);
+        Assert.Contains("Error: cannot read " + path, r.Err);
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
+    }
+
+    [Fact]
+    public void TalkTimeOverAnHourHasHours()
+    {
+        var f = Sf;
+        f = f with { Speakers = f.Speakers.Select(x => x.Id == "S1" ? x with { Seconds = 3725 } : x).ToList() };
+        f.Write(Path.Combine(_dir, "speakers.json"));
+        Assert.Contains(" 1:02:05  ", Run(_dir).Out);
+    }
+
+    [Fact]
+    public void MismatchedVoiceprintLengthIsRefused()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_voices)!);
+        var lib = VoiceLibrary.Load(_voices);
+        lib.Teach("Cy", [1f, 2f, 3f], "x/y", "S1", Now);
+        lib.Save();
+        var before = Snapshot();
+        var libBytes = File.ReadAllBytes(_voices);
+        var r = Run(_dir, "S2=Ada");
+        Assert.Equal(1, r.Code);
+        Assert.Contains(_voices, r.Err);
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
+        Assert.Equal(libBytes, File.ReadAllBytes(_voices));
+    }
+
+    [Fact]
+    public void JoinFollowsThePersonNotTheSpelling()
+    {
+        Run(_dir, "S1=Ada");
+        var lib = VoiceLibrary.Load(_voices);
+        lib.Rename("Ada", "Adah");
+        lib.Save();
+        var r = Run(_dir, "S3=Adah");
+        Assert.Contains("S3 joined S1 (Adah)", r.Out);
+    }
+
+    [Fact]
+    public void ListLinesUpTimesToTheLongestName()
+    {
+        Run(_dir, "S3=Gwendolyn-Ann");
+        var lines = Run(_dir).Out.Split('\n').Where(l => l.StartsWith('S')).ToList();
+        Assert.Equal(lines[0].IndexOf("7:12"), lines[2].IndexOf("2:24"));
     }
 
     [Fact]

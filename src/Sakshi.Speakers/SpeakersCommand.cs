@@ -9,7 +9,7 @@ public static class SpeakersCommand
     public const string Usage = """
         usage:
           sakshi speakers MEETING                 list the speakers
-          sakshi speakers MEETING S3=Gregory ...  name speakers; the same name on two speakers joins them
+          sakshi speakers MEETING S3=Ada ...      name speakers; the same name on two speakers joins them
           sakshi speakers MEETING S3=             take a name off (back to unknown); nothing is removed from the library
           sakshi speakers MEETING --accept        accept every suggestion
           sakshi speakers --add MEETING ...       label a meeting transcribed without speaker labels
@@ -105,9 +105,13 @@ public static class SpeakersCommand
         var lines = new List<string>();
         VoiceLibrary? library = null;
         var taught = false;
+        var joinedAway = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var clips = new List<string>();
 
         void Name(string id, string text)
         {
+            if (joinedAway.TryGetValue(id, out var into))
+                throw new Stop(2, $"{id.ToUpperInvariant()} was joined into {into} earlier in this command");
             var i = entries.FindIndex(e => string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
             if (i < 0) throw new Stop(2, $"no speaker {id} in {dir} ({IdRange(entries.Select(e => e.Id).ToList())})");
             var e = entries[i];
@@ -120,14 +124,17 @@ public static class SpeakersCommand
             }
             try { library ??= VoiceLibrary.Load(voicesFile); }
             catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
-            var person = library.Teach(text, e.Voiceprint, meeting, e.Id, now);
+            Person person;
+            try { person = library.Teach(text, e.Voiceprint, meeting, e.Id, now); }
+            catch (VoiceLibraryException ex) { throw new Stop(1, "Error: " + ex.Message); }
             taught = true;
             var named = e with
             {
                 Status = SpeakerStatus.Named, Name = person.Name, PersonId = person.Id, Suggestion = null, Score = null,
             };
             var j = entries.FindIndex(o => o.Id != e.Id && o.Status == SpeakerStatus.Named
-                && string.Equals(o.Name, person.Name, StringComparison.OrdinalIgnoreCase));
+                && (o.PersonId is not null ? o.PersonId == person.Id
+                    : string.Equals(o.Name, person.Name, StringComparison.OrdinalIgnoreCase)));
             if (j < 0)
             {
                 entries[i] = named;
@@ -149,7 +156,8 @@ public static class SpeakersCommand
             entries = entries.OrderBy(o => IdNumber(o.Id)).ToList();
             for (var k = 0; k < segs.Count; k++)
                 if (segs[k].Speaker == drop.Id) segs[k] = segs[k] with { Speaker = keep.Id };
-            try { File.Delete(Path.Combine(dir, drop.Clip)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            joinedAway[drop.Id] = keep.Id;
+            clips.Add(Path.Combine(dir, drop.Clip));
             lines.Add($"{drop.Id} joined {keep.Id} ({person.Name})");
         }
 
@@ -177,21 +185,25 @@ public static class SpeakersCommand
         {
             throw new Stop(1, $"Error: cannot write the meeting files in {dir}: {e.Message}");
         }
+        foreach (var clip in clips)
+            try { File.Delete(clip); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         foreach (var l in lines) stdout.WriteLine(l);
         return 0;
     }
 
     private static void List(SpeakersFile file, string dir, TextWriter stdout)
     {
-        foreach (var s in file.Speakers)
+        var rows = file.Speakers.Select(s => (s, Who: s.Status switch
         {
-            var who = s.Status switch
-            {
-                SpeakerStatus.Named => s.Name ?? "",
-                SpeakerStatus.Suggested => $"{s.Suggestion}? ({(s.Score ?? 0).ToString("0.00", CultureInfo.InvariantCulture)})",
-                _ => "unknown",
-            };
-            stdout.WriteLine($"{s.Id}  {who.PadRight(12)} {Duration(s.Seconds).PadLeft(4)}  \"{s.Sample}\"");
+            SpeakerStatus.Named => s.Name ?? "",
+            SpeakerStatus.Suggested => $"{s.Suggestion}? ({(s.Score ?? 0).ToString("0.00", CultureInfo.InvariantCulture)})",
+            _ => "unknown",
+        }, Time: Duration(s.Seconds))).ToList();
+        var nameWidth = rows.Select(r => r.Who.Length).DefaultIfEmpty(0).Max();
+        var timeWidth = rows.Select(r => r.Time.Length).DefaultIfEmpty(0).Max();
+        foreach (var (s, who, time) in rows)
+        {
+            stdout.WriteLine($"{s.Id}  {who.PadRight(nameWidth)} {time.PadLeft(timeWidth)}  \"{s.Sample}\"");
             stdout.WriteLine("    " + Path.GetFullPath(Path.Combine(dir, s.Clip)));
         }
     }
