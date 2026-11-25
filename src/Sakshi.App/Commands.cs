@@ -48,6 +48,8 @@ internal static class Commands
         commands:
           sakshi find [--all] WORD...      search every meeting (and the archive)
           sakshi index [--rebuild]         refresh the search index
+          sakshi speakers MEETING [S1=NAME ...]  list, name and join a meeting's speakers
+          sakshi voices                    list the people the voice library knows
           sakshi transcribe [options] FILE transcribe a video (see: sakshi transcribe -h)
           sakshi status                    one-line JSON for the bar widget
           sakshi config                    print the config file path
@@ -125,6 +127,13 @@ internal static class Commands
                     }
                     if (Load(paths, os, home, stderr) is not { } cfg) return 1;
                     return SearchCommand.Run(args, [cfg.MeetingsDir, cfg.EffectiveArchiveDir], paths.IndexFile, stdout, stderr, isTty);
+                }
+                case "speakers":
+                {
+                    if (rest.Length == 0 || rest.Any(a => a is "-h" or "--help"))
+                        return SpeakersCommand.Run(rest, [], paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
+                    if (Load(paths, os, home, stderr) is not { } cfg) return 1;
+                    return SpeakersCommand.Run(rest, [cfg.MeetingsDir, cfg.EffectiveArchiveDir], paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
                 }
                 case "share-picker":
                 {

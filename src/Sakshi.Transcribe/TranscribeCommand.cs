@@ -250,7 +250,7 @@ public static class TranscribeCommand
     /// only when all of those are written are they renamed over the originals. A failure before the renames
     /// deletes the temps and leaves the originals as they were.
     /// </summary>
-    private static void ReplaceFiles(IReadOnlyList<(string Path, Action<string> Write)> files)
+    public static void ReplaceFiles(IReadOnlyList<(string Path, Action<string> Write)> files)
     {
         var temps = files.Select(f => f.Path + ".tmp").ToList();
         try
