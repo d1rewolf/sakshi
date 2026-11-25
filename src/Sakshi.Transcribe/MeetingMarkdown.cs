@@ -21,12 +21,14 @@ public static class MeetingMarkdown
             noFrames
                 ? $"- Segments: {segs.Count}"
                 : $"- Frames: {frames.Count}  ·  Segments: {segs.Count}",
-            "",
         };
+        var labels = segs.Where(s => s.Label is not null).Select(s => EscapeLabel(s.Label!)).Distinct().ToList();
+        if (labels.Count > 0) lines.Add("- Speakers: " + string.Join(", ", labels));
+        lines.Add("");
 
         if (noFrames)
         {
-            foreach (var s in segs) lines.Add(Quote(s));
+            AddQuotes(lines, segs);
             lines.Add("");
             return Join(lines);
         }
@@ -43,7 +45,7 @@ public static class MeetingMarkdown
         {
             lines.Add("## Pre-frame transcript");
             lines.Add("");
-            foreach (var s in preface) lines.Add(Quote(s));
+            AddQuotes(lines, preface);
             lines.Add("");
         }
         for (var i = 0; i < frames.Count; i++)
@@ -53,7 +55,7 @@ public static class MeetingMarkdown
             lines.Add("");
             lines.Add($"![frame at {ts}](frames/{frames[i].FileName})");
             lines.Add("");
-            foreach (var s in buckets[i]) lines.Add(Quote(s));
+            AddQuotes(lines, buckets[i]);
             lines.Add("");
         }
         return Join(lines);
@@ -62,11 +64,11 @@ public static class MeetingMarkdown
     /// <summary>Number of segments that carry text (what meeting.md counts).</summary>
     public static int CountSpoken(IReadOnlyList<Segment> segments) => SpokenOnly(segments).Count;
 
-    private readonly record struct Spoken(double Start, double End, string Text);
+    private readonly record struct Spoken(double Start, double End, string Text, string? Label);
 
     private static List<Spoken> SpokenOnly(IReadOnlyList<Segment> segments) =>
         segments
-            .Select(s => new Spoken(s.Start.TotalMilliseconds / 1000.0, s.End.TotalMilliseconds / 1000.0, s.Text.Trim()))
+            .Select(s => new Spoken(s.Start.TotalMilliseconds / 1000.0, s.End.TotalMilliseconds / 1000.0, s.Text.Trim(), s.Speaker is not null ? s.SpeakerLabel : null))
             .Where(s => s.Text.Length > 0)
             .ToList();
 
@@ -84,7 +86,29 @@ public static class MeetingMarkdown
         return ans;
     }
 
-    private static string Quote(Spoken s) => $"> [{Hms(s.Start)} → {Hms(s.End)}] {s.Text}";
+    private static void AddQuotes(List<string> lines, List<Spoken> block)
+    {
+        string? last = null;
+        foreach (var s in block)
+        {
+            var tag = "";
+            if (s.Label is not null && s.Label != last) tag = $"**{EscapeLabel(s.Label)}:** ";
+            if (s.Label is not null) last = s.Label;
+            lines.Add($"> [{Hms(s.Start)} → {Hms(s.End)}] {tag}{s.Text}");
+        }
+    }
+
+    /// <summary>Backslash-escapes the characters that would turn a label into Markdown.</summary>
+    public static string EscapeLabel(string label)
+    {
+        var sb = new StringBuilder(label.Length);
+        foreach (var c in label)
+        {
+            if (c is '\\' or '*' or '_' or '[' or ']' or '`') sb.Append('\\');
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
 
     private static string Hms(double t)
     {

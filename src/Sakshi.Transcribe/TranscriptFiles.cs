@@ -29,6 +29,11 @@ public static class TranscriptFiles
             w.WriteNumber("to", Millis(s.End));
             w.WriteEndObject();
             w.WriteString("text", Spaced(s.Text));
+            if (s.Speaker is not null && s.SpeakerLabel is not null)
+            {
+                w.WriteString("speaker", s.Speaker);
+                w.WriteString("speaker_label", s.SpeakerLabel);
+            }
             w.WriteEndObject();
         }
         w.WriteEndArray();
@@ -41,10 +46,44 @@ public static class TranscriptFiles
         for (var i = 0; i < segs.Count; i++)
         {
             var s = segs[i];
-            sb.Append(CultureInfo.InvariantCulture, $"{i + 1}\n{Stamp(s.Start)} --> {Stamp(s.End)}\n{Spaced(s.Text)}\n\n");
+            sb.Append(CultureInfo.InvariantCulture, $"{i + 1}\n{Stamp(s.Start)} --> {Stamp(s.End)}\n{SrtText(s)}\n\n");
         }
         File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
     }
+
+    /// <summary>Reads a transcript.json written by Sakshi or whisper-cli. Text comes back as written.</summary>
+    public static (IReadOnlyList<Segment> Segments, string Language) ReadJson(string path)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
+        var root = doc.RootElement;
+        var language = "en";
+        if (root.TryGetProperty("result", out var result) && result.ValueKind == JsonValueKind.Object
+            && result.TryGetProperty("language", out var lang) && lang.ValueKind == JsonValueKind.String)
+            language = lang.GetString() ?? "en";
+
+        var segs = new List<Segment>();
+        if (root.TryGetProperty("transcription", out var items) && items.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                var offsets = item.GetProperty("offsets");
+                var seg = new Segment(
+                    TimeSpan.FromMilliseconds(offsets.GetProperty("from").GetInt64()),
+                    TimeSpan.FromMilliseconds(offsets.GetProperty("to").GetInt64()),
+                    item.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "");
+                if (item.TryGetProperty("speaker", out var sp) && sp.ValueKind == JsonValueKind.String
+                    && item.TryGetProperty("speaker_label", out var sl) && sl.ValueKind == JsonValueKind.String)
+                    seg = seg with { Speaker = sp.GetString(), SpeakerLabel = sl.GetString() };
+                segs.Add(seg);
+            }
+        }
+        return (segs, language);
+    }
+
+    private static string SrtText(Segment s) =>
+        s.Speaker is not null && s.SpeakerLabel is not null
+            ? " " + s.SpeakerLabel + ": " + s.Text.TrimStart()
+            : Spaced(s.Text);
 
     private static long Millis(TimeSpan t) => (long)Math.Round(t.TotalMilliseconds);
 

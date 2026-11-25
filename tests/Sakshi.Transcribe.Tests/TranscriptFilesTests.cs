@@ -71,4 +71,73 @@ public class TranscriptFilesTests : IDisposable
             + "2\n00:00:04,000 --> 01:02:05,500\n no leading space\n\n",
             File.ReadAllText(path));
     }
+
+    private static Segment Spk(double fromS, double toS, string text, string id, string label) =>
+        Seg(fromS, toS, text) with { Speaker = id, SpeakerLabel = label };
+
+    [Fact]
+    public void JsonWithSpeakersHasSpeakerFields()
+    {
+        var path = Path.Combine(_dir, "t.json");
+        TranscriptFiles.WriteJson(path, [Spk(0, 1, " hi", "S2", "Ada"), Seg(1, 2, " plain")], "en");
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var items = doc.RootElement.GetProperty("transcription");
+        Assert.Equal("S2", items[0].GetProperty("speaker").GetString());
+        Assert.Equal("Ada", items[0].GetProperty("speaker_label").GetString());
+        var names = items[0].EnumerateObject().Select(p => p.Name).ToList();
+        Assert.Equal(["timestamps", "offsets", "text", "speaker", "speaker_label"], names);
+        Assert.False(items[1].TryGetProperty("speaker", out _));
+        Assert.False(items[1].TryGetProperty("speaker_label", out _));
+    }
+
+    [Fact]
+    public void JsonRoundTrips()
+    {
+        foreach (var segs in new[]
+        {
+            new[] { Seg(0, 1.5, " one"), Seg(2, 3, " café") },
+            new[] { Spk(0, 1.5, " one", "S1", "Ada"), Seg(2, 3, " two"), Spk(3, 4, " three", "S3", "Speaker 3") },
+        })
+        {
+            var a = Path.Combine(_dir, "a.json");
+            var b = Path.Combine(_dir, "b.json");
+            TranscriptFiles.WriteJson(a, segs, "fr");
+            var (read, lang) = TranscriptFiles.ReadJson(a);
+            Assert.Equal("fr", lang);
+            TranscriptFiles.WriteJson(b, read, lang);
+            Assert.Equal(File.ReadAllBytes(a), File.ReadAllBytes(b));
+            Assert.Equal(segs.Select(x => x.Speaker), read.Select(x => x.Speaker));
+            Assert.Equal(segs.Select(x => x.SpeakerLabel), read.Select(x => x.SpeakerLabel));
+            Assert.Equal(segs.Select(x => x.Start), read.Select(x => x.Start));
+        }
+    }
+
+    [Fact]
+    public void ReadJson_AcceptsWhisperCliExtras()
+    {
+        var path = Path.Combine(_dir, "w.json");
+        File.WriteAllText(path, """
+            {"systeminfo":"x","model":{"type":"base"},"params":{"a":1},
+             "result":{"language":"de"},
+             "transcription":[{"timestamps":{"from":"00:00:01,000","to":"00:00:02,000"},"offsets":{"from":1000,"to":2000},"text":" hallo"}]}
+            """);
+        var (segs, lang) = TranscriptFiles.ReadJson(path);
+        Assert.Equal("de", lang);
+        Assert.Equal(TimeSpan.FromSeconds(1), segs[0].Start);
+        Assert.Equal(TimeSpan.FromSeconds(2), segs[0].End);
+        Assert.Equal(" hallo", segs[0].Text);
+        Assert.Null(segs[0].Speaker);
+        File.WriteAllText(path, """{"transcription":[]}""");
+        Assert.Equal("en", TranscriptFiles.ReadJson(path).Language);
+    }
+
+    [Fact]
+    public void SrtPrefixesTheLabel()
+    {
+        var path = Path.Combine(_dir, "t.srt");
+        TranscriptFiles.WriteSrt(path, [Spk(0, 1, " Hello there", "S1", "Ada"), Seg(1, 2, " plain")]);
+        var lines = File.ReadAllText(path).Split('\n');
+        Assert.Equal(" Ada: Hello there", lines[2]);
+        Assert.Equal(" plain", lines[6]);
+    }
 }
