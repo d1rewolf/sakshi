@@ -30,9 +30,16 @@ public sealed class AddSpeakersCommandTests : IDisposable
             IReadOnlyList<FrameRecord>? frames, TextWriter stdout, CancellationToken ct)
         {
             Calls.Add((audioWav, outputDir, source, frames));
-            if (Throw is not null) throw Throw;
+            if (Throw is not null)
+            {
+                File.WriteAllText(Path.Combine(outputDir, "speakers.json"), "partial");
+                throw Throw;
+            }
+            if (Speakers == 0 && Throw is null) { Directory.CreateDirectory(Path.Combine(outputDir, "speakers")); File.WriteAllText(Path.Combine(outputDir, "speakers", "X.wav"), "x"); }
             if (Speakers == 0) return Task.FromResult(new SpeakerOutcome(segments, 0, 0, 0));
             var labelled = segments.Select(s => s with { Speaker = "S1", SpeakerLabel = "Speaker 1" }).ToList();
+            Directory.CreateDirectory(Path.Combine(outputDir, "speakers"));
+            File.WriteAllText(Path.Combine(outputDir, "speakers", "S1.wav"), "new clip");
             var entry = new SpeakerEntry("S1", SpeakerStatus.Unknown, null, null, null, null, 2, "x", "speakers/S1.wav", [1f]);
             new SpeakersFile(1, "m", source, frames, [entry]).Write(Path.Combine(outputDir, "speakers.json"));
             return Task.FromResult(new SpeakerOutcome(labelled, Speakers, 0, Speakers));
@@ -202,5 +209,62 @@ public sealed class AddSpeakersCommandTests : IDisposable
         Assert.Contains($"==> {a}", r.Out);
         Assert.Contains($"==> {b}", r.Out);
         Assert.Equal(2, r.Out.Split("   found 2 speakers").Length - 1);
+    }
+
+    private static void SeedOld(string dir)
+    {
+        Directory.CreateDirectory(Path.Combine(dir, "speakers"));
+        File.WriteAllText(Path.Combine(dir, "speakers", "S9.wav"), "old clip");
+        File.WriteAllText(Path.Combine(dir, "speakers.json"), "old json");
+    }
+
+    private static void AssertOldKept(string dir)
+    {
+        Assert.Equal("old json", File.ReadAllText(Path.Combine(dir, "speakers.json")));
+        Assert.Equal("old clip", File.ReadAllText(Path.Combine(dir, "speakers", "S9.wav")));
+        Assert.Single(Directory.GetFiles(Path.Combine(dir, "speakers")));
+        Assert.False(Directory.Exists(Path.Combine(dir, ".speakers-staging")));
+    }
+
+    [Fact]
+    public void ZeroSpeakersKeepsExistingSpeakersJsonAndClips()
+    {
+        var dir = Meeting("z");
+        SeedOld(dir);
+        Run(new FakeWhisper(), new FakeStep { Speakers = 0 }, dir);
+        AssertOldKept(dir);
+    }
+
+    [Fact]
+    public void AThrowingStepKeepsExistingSpeakersJsonAndClips()
+    {
+        var dir = Meeting("t");
+        SeedOld(dir);
+        var r = Run(new FakeWhisper(), new FakeStep { Throw = new InvalidOperationException("boom") }, dir);
+        Assert.Equal(1, r.Code);
+        AssertOldKept(dir);
+    }
+
+    [Fact]
+    public void ARewriteFailureKeepsExistingSpeakersJsonAndClips()
+    {
+        var dir = Meeting("r");
+        SeedOld(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "meeting.md.tmp")); // makes the meeting.md write fail
+        var r = Run(new FakeWhisper(), new FakeStep(), dir);
+        Assert.Equal(1, r.Code);
+        AssertOldKept(dir);
+    }
+
+    [Fact]
+    public void SuccessReplacesSpeakersJsonAndDropsOldClips()
+    {
+        var dir = Meeting("ok");
+        SeedOld(dir);
+        Assert.Equal(0, Run(new FakeWhisper(), new FakeStep(), dir).Code);
+        Assert.Equal("new clip", File.ReadAllText(Path.Combine(dir, "speakers", "S1.wav")));
+        Assert.False(File.Exists(Path.Combine(dir, "speakers", "S9.wav")));
+        Assert.Equal(1, SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Version);
+        Assert.False(Directory.Exists(Path.Combine(dir, ".speakers-staging")));
     }
 }

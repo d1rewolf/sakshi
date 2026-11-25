@@ -252,6 +252,9 @@ public class TranscribeCommandTests : IDisposable
         var step = new FakeSpeakers((dir, segs) =>
         {
             Directory.CreateDirectory(Path.Combine(dir, "meeting.md.tmp"));
+            Directory.CreateDirectory(Path.Combine(dir, "speakers"));
+            File.WriteAllText(Path.Combine(dir, "speakers", "S1.wav"), "wav");
+            File.WriteAllText(Path.Combine(dir, "speakers.json"), "{}");
             return new SpeakerOutcome(
                 [segs[0] with { Speaker = "S1", SpeakerLabel = "Ada" }, segs[1]], 1, 0, 1);
         });
@@ -261,6 +264,8 @@ public class TranscribeCommandTests : IDisposable
 
         Assert.Equal(0, code);
         Assert.Contains("Warning: speaker labels skipped:", stderr);
+        Assert.False(File.Exists(Path.Combine(outDir, "speakers.json")));
+        Assert.False(Directory.Exists(Path.Combine(outDir, "speakers")));
         Assert.DoesNotContain("speaker", File.ReadAllText(Path.Combine(outDir, "transcript.json")));
         Assert.DoesNotContain("Ada", File.ReadAllText(Path.Combine(outDir, "transcript.srt")));
         Assert.DoesNotContain("- Speakers:", File.ReadAllText(Path.Combine(outDir, "meeting.md")));

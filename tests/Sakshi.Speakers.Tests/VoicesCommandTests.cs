@@ -71,6 +71,16 @@ public sealed class VoicesCommandTests : IDisposable
     }
 
     [Fact]
+    public void RenameToAnExistingNameIsAnError()
+    {
+        Seed();
+        var r = Run("rename", "Ada", "Ben");
+        Assert.Equal(1, r.Code);
+        Assert.StartsWith("Error: Ben is already in the voice library", r.Err);
+        Assert.NotNull(VoiceLibrary.Load(_file).Find("Ada"));
+    }
+
+    [Fact]
     public void ABadFileExitsOneNamingIt()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_file)!);

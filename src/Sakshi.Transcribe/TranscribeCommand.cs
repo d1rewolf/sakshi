@@ -214,6 +214,14 @@ public static class TranscribeCommand
                 }
                 catch (Exception e) when (!ct.IsCancellationRequested)
                 {
+                    // speakers.json and the clips describe labels the transcript does not carry: remove them.
+                    try
+                    {
+                        File.Delete(Path.Combine(outputDir, "speakers.json"));
+                        var clips = Path.Combine(outputDir, "speakers");
+                        if (Directory.Exists(clips)) Directory.Delete(clips, true);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
                     await stderr.WriteLineAsync($"Warning: speaker labels skipped: {e.Message}");
                 }
             }

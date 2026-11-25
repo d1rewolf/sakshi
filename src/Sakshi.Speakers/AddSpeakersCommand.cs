@@ -83,30 +83,57 @@ public static partial class AddSpeakersCommand
         if (!hasWav)
         {
             stdout.WriteLine("==> Extracting audio");
-            await Ffmpeg.ExtractAudioAsync(recording!, wav, ct);
+            var part = wav + ".part";
+            try
+            {
+                await Ffmpeg.ExtractAudioAsync(recording!, part, ct);
+                File.Move(part, wav, overwrite: true);
+            }
+            finally
+            {
+                try { File.Delete(part); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
         }
 
         stdout.WriteLine("==> Transcribing with Whisper.net");
         var segments = await whisper.TranscribeAsync(wav, model, language, 0, ct, words: true);
 
         stdout.WriteLine("==> Finding speakers");
-        var outcome = await step.LabelAsync(wav, dir, segments, source, frames, stdout, ct);
-        if (outcome.Speakers <= 0)
+        // The step writes speakers.json and the clips into a staging folder; the meeting's own copies are replaced
+        // only after the transcript has been rewritten, so a failure leaves them matching the old transcript.
+        var staging = Path.Combine(dir, ".speakers-staging");
+        try
         {
-            stdout.WriteLine($"{dir}: no speakers found");
-            return true;
-        }
+            if (Directory.Exists(staging)) Directory.Delete(staging, true);
+            Directory.CreateDirectory(staging);
+            var outcome = await step.LabelAsync(wav, staging, segments, source, frames, stdout, ct);
+            if (outcome.Speakers <= 0)
+            {
+                stdout.WriteLine($"{dir}: no speakers found");
+                return true;
+            }
 
-        var labelled = outcome.Segments;
-        var md = MeetingMarkdown.Render(source, frames ?? [], labelled, frames is null);
-        TranscribeCommand.ReplaceFiles(
-        [
-            (Path.Combine(dir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, language)),
-            (Path.Combine(dir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled)),
-            (Path.Combine(dir, "meeting.md"), p => File.WriteAllText(p, md, new UTF8Encoding(false))),
-        ]);
-        stdout.WriteLine(
-            $"   found {outcome.Speakers} {(outcome.Speakers == 1 ? "speaker" : "speakers")} ({outcome.Suggested + outcome.Unknown} to name)");
+            var labelled = outcome.Segments;
+            var md = MeetingMarkdown.Render(source, frames ?? [], labelled, frames is null);
+            TranscribeCommand.ReplaceFiles(
+            [
+                (Path.Combine(dir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, language)),
+                (Path.Combine(dir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled)),
+                (Path.Combine(dir, "meeting.md"), p => File.WriteAllText(p, md, new UTF8Encoding(false))),
+            ]);
+            var clips = Path.Combine(dir, "speakers");
+            if (Directory.Exists(clips)) Directory.Delete(clips, true);
+            if (Directory.Exists(Path.Combine(staging, "speakers")))
+                Directory.Move(Path.Combine(staging, "speakers"), clips);
+            File.Move(Path.Combine(staging, "speakers.json"), speakersPath, overwrite: true);
+            stdout.WriteLine(
+                $"   found {outcome.Speakers} {(outcome.Speakers == 1 ? "speaker" : "speakers")} ({outcome.Suggested + outcome.Unknown} to name)");
+        }
+        finally
+        {
+            try { if (Directory.Exists(staging)) Directory.Delete(staging, true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
         return true;
     }
 
