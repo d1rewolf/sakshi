@@ -222,7 +222,8 @@ transcript.json carries none of speakers.json's ids, the `speakers` command refu
     SHA-256 `e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012`
 - If the models cannot be had, or labelling fails, the transcript is written without labels and the log says why in
   one line. Speaker labels never cost a transcript.
-- The progress lines gain `==> Finding speakers` and `   found N speakers (M named)`.
+- The progress lines gain `==> Finding speakers` and `   found N speakers (M to name)` (M counts the suggested and
+  unknown speakers; `1 speaker` when there is one, `found no speakers` when there are none).
 - Threads: `max(1, ProcessorCount / 2)`, as the live transcript uses.
 - The live transcript does not change.
 

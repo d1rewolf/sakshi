@@ -50,7 +50,10 @@ internal static class Commands
           sakshi index [--rebuild]         refresh the search index
           sakshi speakers MEETING [S1=NAME ...]
                                            list, name and join a meeting's speakers
+          sakshi speakers --add MEETING... label meetings transcribed without speaker labels
           sakshi voices                    list the people the voice library knows
+          sakshi voices rename OLD NEW     rename a person in the voice library
+          sakshi voices forget NAME        remove a person and their voiceprints
           sakshi transcribe [options] FILE transcribe a video (see: sakshi transcribe -h)
           sakshi status                    one-line JSON for the bar widget
           sakshi config                    print the config file path

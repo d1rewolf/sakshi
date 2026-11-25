@@ -201,8 +201,9 @@ A guess never teaches Sakshi anything: only the names you give or accept do.
 You can correct a name you gave, too: naming `S3=Cy` after `S3=Ben` also fixes
 what Sakshi learned from that voice, so Ben no longer carries it. `S3=` takes
 the name off and forgets the one voiceprint Sakshi learned from that voice in
-this meeting; the person stays in the list of people Sakshi knows. To remove a person
-and all their voiceprints, use `sakshi voices forget NAME` (see below).
+this meeting; the person stays in the list of people Sakshi knows. To remove
+a person and all their voiceprints, use `sakshi voices forget NAME` (see
+below).
 
 The list shows each voice with how long it spoke, one line it said, and the
 path of a 5-second sound clip. Play the clip to hear who it is. Naming a voice
