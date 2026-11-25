@@ -33,6 +33,9 @@ public sealed class VoiceLibrary
     public IReadOnlyList<Person> People => _people;
     public (double[]? Sum, int Count) BackgroundSum => (_sum, _count);
 
+    /// <summary>An empty library with no file behind it, for when the real one cannot be read. Never saved.</summary>
+    internal static VoiceLibrary Unsaved() => new("");
+
     public static VoiceLibrary Load(string path)
     {
         var lib = new VoiceLibrary(path);
