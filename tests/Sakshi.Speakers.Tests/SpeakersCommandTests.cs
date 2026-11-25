@@ -36,7 +36,7 @@ public sealed class SpeakersCommandTests : IDisposable
     {
         var o = new StringWriter();
         var e = new StringWriter();
-        var code = SpeakersCommand.Run(args, [Path.Combine(_root, "meetings")], _voices, o, e, Now);
+        var code = SpeakersCommand.RunAsync(args, [Path.Combine(_root, "meetings")], _voices, o, e, Now).GetAwaiter().GetResult();
         return (code, o.ToString(), e.ToString());
     }
 
@@ -271,6 +271,9 @@ public sealed class SpeakersCommandTests : IDisposable
         lib.Save();
         var r = Run(_dir, "S3=Adah");
         Assert.Contains("S3 joined S1 (Adah)", r.Out);
+        Assert.Equal("Adah", Sf.Speakers.Single(s => s.Id == "S1").Name);
+        Assert.DoesNotContain("**Ada:**", Md);
+        Assert.Contains("**Adah:**", Md);
     }
 
     [Fact]

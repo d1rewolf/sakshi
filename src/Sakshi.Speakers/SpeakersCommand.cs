@@ -17,8 +17,11 @@ public static class SpeakersCommand
 
     private sealed class Stop(int code, string message) : Exception(message) { public int Code { get; } = code; }
 
-    public static int Run(IReadOnlyList<string> args, IReadOnlyList<string> roots, string voicesFile,
-        TextWriter stdout, TextWriter stderr, DateTimeOffset now)
+    /// <param name="whisper">With <paramref name="model"/> and <paramref name="step"/>: what --add needs; without
+    /// them --add is not available.</param>
+    public static async Task<int> RunAsync(IReadOnlyList<string> args, IReadOnlyList<string> roots, string voicesFile,
+        TextWriter stdout, TextWriter stderr, DateTimeOffset now, IWhisper? whisper = null, string? model = null,
+        ISpeakerStep? step = null, CancellationToken ct = default)
     {
         if (args.Count == 0)
         {
@@ -32,8 +35,19 @@ public static class SpeakersCommand
         }
         if (args.Contains("--add"))
         {
-            stderr.WriteLine("sakshi speakers: --add is not available yet");
-            return 2;
+            if (whisper is null || model is null || step is null)
+            {
+                stderr.WriteLine("sakshi speakers: --add is not available yet");
+                return 2;
+            }
+            var meetings = args.Where(a => a != "--add").ToList();
+            var bad = meetings.FirstOrDefault(a => a.StartsWith('-') || a.Contains('='));
+            if (meetings.Count == 0 || bad is not null)
+            {
+                stderr.WriteLine(bad is null ? Usage : $"sakshi speakers: cannot make sense of {bad} with --add\n{Usage}");
+                return 2;
+            }
+            return await AddSpeakersCommand.RunAsync(meetings, roots, whisper, model, step, stdout, stderr, ct);
         }
         try
         {
@@ -150,7 +164,7 @@ public static class SpeakersCommand
                 var wk = seconds > 0 ? keep.Seconds / seconds : 0.5;
                 print = keep.Voiceprint.Select((v, k) => (float)(v * wk + drop.Voiceprint[k] * (1 - wk))).ToArray();
             }
-            var merged = keep with { Seconds = seconds, Voiceprint = print };
+            var merged = keep with { Name = person.Name, Seconds = seconds, Voiceprint = print };
             entries.RemoveAll(o => o.Id == keep.Id || o.Id == drop.Id);
             entries.Add(merged);
             entries = entries.OrderBy(o => IdNumber(o.Id)).ToList();

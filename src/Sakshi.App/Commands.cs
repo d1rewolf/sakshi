@@ -132,10 +132,24 @@ internal static class Commands
                 case "speakers":
                 {
                     if (rest.Length == 0 || rest.Any(a => a is "-h" or "--help"))
-                        return SpeakersCommand.Run(rest, [], paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
+                        return await SpeakersCommand.RunAsync(rest, [], paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
                     if (Load(paths, os, home, stderr) is not { } cfg) return 1;
-                    return SpeakersCommand.Run(rest, [cfg.MeetingsDir, cfg.EffectiveArchiveDir], paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
+                    string[] roots = [cfg.MeetingsDir, cfg.EffectiveArchiveDir];
+                    if (!rest.Contains("--add"))
+                        return await SpeakersCommand.RunAsync(rest, roots, paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
+                    if (!FfmpegExecutable.Available)
+                    {
+                        stderr.WriteLine("sakshi: speakers --add needs ffmpeg, which was not found");
+                        return 1;
+                    }
+                    var model = await EnsureModelAsync(cfg, paths, stdout, stderr, ct);
+                    if (model is null) return 1;
+                    return await SpeakersCommand.RunAsync(rest, roots, paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow,
+                        new WhisperNet(), model,
+                        new SpeakerStep(paths.ModelsDir, paths.VoicesFile, Math.Max(1, Environment.ProcessorCount / 2)), ct);
                 }
+                case "voices":
+                    return VoicesCommand.Run(rest, paths.VoicesFile, stdout, stderr);
                 case "share-picker":
                 {
                     if (!OperatingSystem.IsLinux())
@@ -343,6 +357,26 @@ internal static class Commands
                 bak = $"{config}.bak-{stamp}" + (n == 0 ? "" : $"-{n + 1}");
             }
         }
+    }
+
+    /// <summary>The whisper model as transcribe resolves it: the config's, else the default in the models folder,
+    /// downloaded when missing. Null (after saying why on stderr) when there is none.</summary>
+    private static async Task<string?> EnsureModelAsync(SakshiConfig cfg, SakshiPaths paths, TextWriter stdout, TextWriter stderr,
+        CancellationToken ct)
+    {
+        var configured = cfg.Model.Length > 0;
+        var model = configured ? cfg.Model : Path.Combine(paths.ModelsDir, TranscribeCommand.DefaultModelFile);
+        if (File.Exists(model)) return model;
+        string? why = null;
+        if (!configured)
+        {
+            stdout.WriteLine($"==> Downloading whisper model {Path.GetFileName(model)} to {model}");
+            why = await TranscribeCommand.DownloadModelAsync(model, ct);
+        }
+        if (File.Exists(model)) return model;
+        stderr.WriteLine($"Error: whisper model not found: {model}");
+        if (why is not null) stderr.WriteLine($"Download failed: {why}");
+        return null;
     }
 
     private static async Task<int> TranscribeAsync(string[] args, SakshiPaths paths, HostOs os, string home,
