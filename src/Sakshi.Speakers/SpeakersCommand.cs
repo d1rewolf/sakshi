@@ -83,6 +83,16 @@ public static class SpeakersCommand
                 throw new Stop(1, $"Error: cannot read {speakersPath}: {why}");
             }
 
+            var transcriptPath = Path.Combine(dir, "transcript.json");
+            IReadOnlyList<Segment>? segments = null;
+            var language = "";
+            Exception? unreadable = null;
+            try { (segments, language) = TranscriptFiles.ReadJson(transcriptPath); }
+            catch (Exception e) { unreadable = e; }
+            // A transcript written again without labels leaves an older speakers.json behind: never list or apply it.
+            if (segments is not null && !segments.Any(s => s.Speaker is { } id && file.Speakers.Any(e => e.Id == id)))
+                throw new Stop(1, $"{dir}: the transcript has no speaker labels; run: sakshi speakers --add {dir}");
+
             if (steps.Count == 0)
             {
                 List(file, dir, stdout);
@@ -94,11 +104,7 @@ public static class SpeakersCommand
                 if (name is not null && !ids.Any(i => string.Equals(i, id, StringComparison.OrdinalIgnoreCase)))
                     throw new Stop(2, $"no speaker {id} in {dir} ({IdRange(ids)})");
 
-            var transcriptPath = Path.Combine(dir, "transcript.json");
-            IReadOnlyList<Segment> segments;
-            string language;
-            try { (segments, language) = TranscriptFiles.ReadJson(transcriptPath); }
-            catch (Exception e) { throw new Stop(1, $"Error: cannot read {transcriptPath}: {e.Message}"); }
+            if (segments is null) throw new Stop(1, $"Error: cannot read {transcriptPath}: {unreadable!.Message}");
 
             return Apply(dir, file, segments, language, steps, voicesFile, stdout, now);
         }

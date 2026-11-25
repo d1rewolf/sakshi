@@ -197,6 +197,23 @@ public sealed class SpeakersCommandTests : IDisposable
     }
 
     [Fact]
+    public void TranscriptWithoutTheseSpeakersIsRefused()
+    {
+        // The meeting was transcribed again without labels; speakers.json is left over from before.
+        TranscriptFiles.WriteJson(Path.Combine(_dir, "transcript.json"),
+            [new Segment(TimeSpan.Zero, TimeSpan.FromSeconds(2), "Hello there")], "en");
+        var before = Snapshot();
+        foreach (var args in new[] { new[] { _dir }, [_dir, "S2=Ada"], [_dir, "--accept"] })
+        {
+            var r = Run(args);
+            Assert.Equal(1, r.Code);
+            Assert.Contains($"{_dir}: the transcript has no speaker labels; run: sakshi speakers --add {_dir}", r.Err);
+        }
+        foreach (var (f, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(_dir, f)));
+        Assert.False(File.Exists(_voices));
+    }
+
+    [Fact]
     public void BadVoicesFileLeavesTheMeeting()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_voices)!);

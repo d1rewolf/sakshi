@@ -137,11 +137,6 @@ internal static class Commands
                     string[] roots = [cfg.MeetingsDir, cfg.EffectiveArchiveDir];
                     if (!rest.Contains("--add"))
                         return await SpeakersCommand.RunAsync(rest, roots, paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow);
-                    if (!FfmpegExecutable.Available)
-                    {
-                        stderr.WriteLine("sakshi: speakers --add needs ffmpeg, which was not found");
-                        return 1;
-                    }
                     var model = await EnsureModelAsync(cfg, paths, stdout, stderr, ct);
                     if (model is null) return 1;
                     return await SpeakersCommand.RunAsync(rest, roots, paths.VoicesFile, stdout, stderr, DateTimeOffset.UtcNow,

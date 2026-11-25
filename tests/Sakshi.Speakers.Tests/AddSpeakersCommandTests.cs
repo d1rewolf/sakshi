@@ -66,12 +66,15 @@ public sealed class AddSpeakersCommandTests : IDisposable
         return dir;
     }
 
-    private (int Code, string Out, string Err) Run(FakeWhisper w, FakeStep s, params string[] meetings)
+    private (int Code, string Out, string Err) Run(FakeWhisper w, FakeStep s, params string[] meetings) =>
+        RunWith(w, s, null, meetings);
+
+    private (int Code, string Out, string Err) RunWith(FakeWhisper w, FakeStep s, Func<bool>? ffmpeg, params string[] meetings)
     {
         var o = new StringWriter();
         var e = new StringWriter();
         var code = AddSpeakersCommand.RunAsync(meetings, [Path.Combine(_root, "meetings")], w, "/m/model.bin", s, o, e,
-            CancellationToken.None).GetAwaiter().GetResult();
+            CancellationToken.None, ffmpeg).GetAwaiter().GetResult();
         return (code, o.ToString().Replace("\r", ""), e.ToString().Replace("\r", ""));
     }
 
@@ -294,5 +297,51 @@ public sealed class AddSpeakersCommandTests : IDisposable
         Assert.Empty(Directory.GetFiles(dir, "*.part*"));
         Assert.Equal(Path.Combine(dir, "audio.wav"), s.Calls.Single().Wav);
         Assert.Equal("rec.m4a", s.Calls.Single().Source);
+    }
+
+    [Fact]
+    public void FfmpegIsNeededOnlyForAMeetingWithoutAudioWav()
+    {
+        var withWav = Meeting("a", recording: "a.mp4");
+        var withoutWav = Meeting("b", audio: false, recording: "b.mp4");
+        var w = new FakeWhisper();
+        var r = RunWith(w, new FakeStep(), () => false, withWav, withoutWav);
+        Assert.Equal(1, r.Code);
+        Assert.Contains("**Speaker 1:**", File.ReadAllText(Path.Combine(withWav, "meeting.md")));
+        Assert.Contains($"Warning: {withoutWav}: speaker labels skipped: ffmpeg was not found; it is needed to take the sound out of b.mp4", r.Err);
+        Assert.Single(w.Calls);
+        Assert.False(File.Exists(Path.Combine(withoutWav, "audio.wav")));
+    }
+
+    [Fact]
+    public void AClipSwapFailureWarnsButTheLabelsAreDone()
+    {
+        var dir = Meeting("clips");
+        SeedOld(dir);
+        // A folder where the new clip should go: the clip cannot be put in place.
+        Directory.CreateDirectory(Path.Combine(dir, "speakers", "S1.wav"));
+        var r = Run(new FakeWhisper(), new FakeStep(), dir);
+        Assert.Equal(0, r.Code);
+        Assert.Contains($"Warning: {dir}: could not replace the voice clips: ", r.Err);
+        Assert.Contains("   found 2 speakers", r.Out);
+        // speakers.json always matches the new transcript; at worst clips are missing or old.
+        var json = SpeakersFile.Read(Path.Combine(dir, "speakers.json"));
+        Assert.Equal(["S1"], json.Speakers.Select(x => x.Id));
+        Assert.Contains("\"speaker\": \"S1\"", File.ReadAllText(Path.Combine(dir, "transcript.json")));
+        Assert.Contains("**Speaker 1:**", File.ReadAllText(Path.Combine(dir, "meeting.md")));
+        Assert.False(Directory.Exists(Path.Combine(dir, ".speakers-staging")));
+    }
+
+    [Fact]
+    public void ALeftoverSpeakersOldFileDoesNotStopTheLabels()
+    {
+        var dir = Meeting("old");
+        SeedOld(dir);
+        File.WriteAllText(Path.Combine(dir, "speakers.old"), "in the way");
+        var r = Run(new FakeWhisper(), new FakeStep(), dir);
+        Assert.Equal(0, r.Code);
+        Assert.Equal(1, SpeakersFile.Read(Path.Combine(dir, "speakers.json")).Version);
+        Assert.Equal("new clip", File.ReadAllText(Path.Combine(dir, "speakers", "S1.wav")));
+        Assert.False(File.Exists(Path.Combine(dir, "speakers", "S9.wav")));
     }
 }

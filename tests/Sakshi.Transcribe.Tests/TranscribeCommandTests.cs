@@ -300,6 +300,53 @@ public class TranscribeCommandTests : IDisposable
         Assert.DoesNotContain("- Speakers:", File.ReadAllText(Path.Combine(outDir, "meeting.md")));
     }
 
+    private static void SeedStaleLabels(string outDir)
+    {
+        Directory.CreateDirectory(Path.Combine(outDir, "speakers"));
+        File.WriteAllText(Path.Combine(outDir, "speakers.json"), "{}");
+        File.WriteAllText(Path.Combine(outDir, "speakers", "S1.wav"), "wav");
+        File.WriteAllText(Path.Combine(outDir, "speakers", "S12.wav"), "wav");
+    }
+
+    [Fact]
+    public async Task ATranscriptWithoutLabelsRemovesAnEarlierRunsSpeakerFiles()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var outDir = Path.Combine(_dir, "rerun-off");
+        SeedStaleLabels(outDir);
+        var kept = Path.Combine(_dir, "rerun-kept");
+        SeedStaleLabels(kept);
+        File.WriteAllText(Path.Combine(kept, "speakers", "notes.txt"), "mine");
+
+        Assert.Equal(0, (await RunWithAsync(TwoSegments(), TwoSpeakers(), true, null, "--no-speakers", "-F", "none", "-m", _model, "-o", outDir, clip)).code);
+        Assert.Equal(0, (await RunWithAsync(TwoSegments(), TwoSpeakers(), true, null, "--no-speakers", "-F", "none", "-m", _model, "-o", kept, clip)).code);
+
+        Assert.False(File.Exists(Path.Combine(outDir, "speakers.json")));
+        Assert.False(Directory.Exists(Path.Combine(outDir, "speakers")));
+        Assert.False(File.Exists(Path.Combine(kept, "speakers.json")));
+        Assert.Equal(["notes.txt"], Directory.GetFiles(Path.Combine(kept, "speakers")).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task AnEarlierRunsSpeakerFilesAreGoneBeforeTheUnlabelledTranscriptIsWritten()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var outDir = Path.Combine(_dir, "rerun-on");
+        SeedStaleLabels(outDir);
+        bool? stale = null;
+        var step = new FakeSpeakers((dir, segs) =>
+        {
+            stale = File.Exists(Path.Combine(dir, "speakers.json"));
+            throw new InvalidOperationException("native crash stand-in");
+        });
+
+        await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.False(stale);
+    }
+
     [Fact]
     public async Task SpeakerFailureStillWritesTheTranscript()
     {

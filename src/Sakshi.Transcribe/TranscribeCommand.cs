@@ -155,6 +155,7 @@ public static class TranscribeCommand
                 await stderr.WriteLineAsync($"Error: transcription failed (model: {model}): {e.Message}");
                 return 1;
             }
+            RemoveSpeakerFiles(outputDir); // an earlier run's labels would not match the transcript written next
             TranscriptFiles.WriteJson(Path.Combine(outputDir, "transcript.json"), segments, o.Language);
             TranscriptFiles.WriteSrt(Path.Combine(outputDir, "transcript.srt"), segments);
 
@@ -251,6 +252,22 @@ public static class TranscribeCommand
             if (tempDir)
                 try { Directory.Delete(outputDir, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>Deletes speakers.json and the speaker clips (speakers/S&lt;n&gt;.wav), and the speakers folder if
+    /// that leaves it empty. Best effort: other files are left alone.</summary>
+    private static void RemoveSpeakerFiles(string outputDir)
+    {
+        try
+        {
+            File.Delete(Path.Combine(outputDir, "speakers.json"));
+            var clips = Path.Combine(outputDir, "speakers");
+            if (!Directory.Exists(clips)) return;
+            foreach (var f in Directory.EnumerateFiles(clips, "S*.wav"))
+                if (System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(f), @"^S\d+\.wav$")) File.Delete(f);
+            if (!Directory.EnumerateFileSystemEntries(clips).Any()) Directory.Delete(clips);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     /// <summary>

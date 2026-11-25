@@ -227,6 +227,10 @@ redo the screen pictures), so it takes a few minutes for an hour-long
 meeting. It needs the meeting's recording (or its `audio.wav`) to still be in the
 folder.
 
+On a meeting that already has labels, `--add` starts over: the names you gave
+are not kept, but voices Sakshi has learned come back as guesses (with a `?`)
+for you to accept.
+
 ### The people Sakshi knows
 
 ```

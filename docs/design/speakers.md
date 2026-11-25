@@ -200,6 +200,15 @@ changed. Each file is written to a temp file and renamed over the old one.
 `--add` needs `audio.wav`, or the recording (`*.mp4`, `*.mkv`, `*.m4a`) to extract it from. It runs Whisper again
 (with word times) and the speaker steps, and rewrites transcript.json, transcript.srt, meeting.md and speakers.json.
 Frames are not extracted again: meeting.md is rebuilt from the `frames/frame_HH-MM-SS*.jpg` files already there.
+speakers.json is replaced together with the other three files (all temp files written first, then renamed); the clips
+are swapped in afterwards, best effort (a failure prints `Warning: DIR: could not replace the voice clips: …`, and at
+worst some clips are missing or old). ffmpeg is needed only for a meeting without `audio.wav`; without it, that meeting
+is skipped with a warning. On a meeting that already has labels, `--add` starts over: names given before come back as
+suggestions if the voices are in the library.
+
+`sakshi transcribe` removes an earlier run's speakers.json and clips before it writes the unlabelled transcript. If
+transcript.json carries none of speakers.json's ids, the `speakers` command refuses with
+`DIR: the transcript has no speaker labels; run: sakshi speakers --add DIR`.
 
 ## Transcribe
 

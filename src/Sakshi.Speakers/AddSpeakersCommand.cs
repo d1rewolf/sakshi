@@ -17,9 +17,14 @@ public static partial class AddSpeakersCommand
     [GeneratedRegex(@"^- Source: `(.+)`\s*$", RegexOptions.Multiline)]
     private static partial Regex SourceLine();
 
+    [GeneratedRegex(@"^S\d+\.wav$")]
+    private static partial Regex ClipName();
+
     public static async Task<int> RunAsync(IReadOnlyList<string> meetings, IReadOnlyList<string> roots, IWhisper whisper,
-        string model, ISpeakerStep step, TextWriter stdout, TextWriter stderr, CancellationToken ct)
+        string model, ISpeakerStep step, TextWriter stdout, TextWriter stderr, CancellationToken ct,
+        Func<bool>? ffmpegAvailable = null)
     {
+        ffmpegAvailable ??= () => FfmpegExecutable.Available;
         var dirs = new List<string>();
         foreach (var m in meetings)
         {
@@ -38,7 +43,7 @@ public static partial class AddSpeakersCommand
             stdout.WriteLine($"==> {dir}");
             try
             {
-                if (!await AddOneAsync(dir, whisper, model, step, stdout, stderr, ct)) failed = true;
+                if (!await AddOneAsync(dir, whisper, model, step, ffmpegAvailable, stdout, stderr, ct)) failed = true;
             }
             catch (Exception e) when (!ct.IsCancellationRequested)
             {
@@ -50,7 +55,7 @@ public static partial class AddSpeakersCommand
     }
 
     private static async Task<bool> AddOneAsync(string dir, IWhisper whisper, string model, ISpeakerStep step,
-        TextWriter stdout, TextWriter stderr, CancellationToken ct)
+        Func<bool> ffmpegAvailable, TextWriter stdout, TextWriter stderr, CancellationToken ct)
     {
         var wav = Path.Combine(dir, "audio.wav");
         var recording = Directory.EnumerateFiles(dir)
@@ -82,6 +87,9 @@ public static partial class AddSpeakersCommand
 
         if (!hasWav)
         {
+            if (!ffmpegAvailable())
+                throw new InvalidOperationException(
+                    $"ffmpeg was not found; it is needed to take the sound out of {Path.GetFileName(recording)}");
             stdout.WriteLine("==> Extracting audio");
             var part = Path.Combine(dir, "audio.part.wav"); // ffmpeg picks the format from the extension
             try
@@ -115,23 +123,21 @@ public static partial class AddSpeakersCommand
 
             var labelled = outcome.Segments;
             var md = MeetingMarkdown.Render(source, frames ?? [], labelled, frames is null);
+            var stagedJson = Path.Combine(staging, "speakers.json");
+            // speakers.json goes with the transcript, all or nothing, so it never names speakers the transcript
+            // does not carry.
             TranscribeCommand.ReplaceFiles(
             [
                 (Path.Combine(dir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, language)),
                 (Path.Combine(dir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled)),
                 (Path.Combine(dir, "meeting.md"), p => File.WriteAllText(p, md, new UTF8Encoding(false))),
+                (speakersPath, p => File.Copy(stagedJson, p, overwrite: true)),
             ]);
-            var clips = Path.Combine(dir, "speakers");
-            var stagedClips = Path.Combine(staging, "speakers");
-            var oldClips = Path.Combine(dir, "speakers.old");
-            if (Directory.Exists(oldClips)) Directory.Delete(oldClips, true);
-            if (Directory.Exists(stagedClips))
+            try { ReplaceClips(Path.Combine(staging, "speakers"), Path.Combine(dir, "speakers")); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                if (Directory.Exists(clips)) Directory.Move(clips, oldClips);
-                Directory.Move(stagedClips, clips);
+                stderr.WriteLine($"Warning: {dir}: could not replace the voice clips: {e.Message}");
             }
-            File.Move(Path.Combine(staging, "speakers.json"), speakersPath, overwrite: true);
-            if (Directory.Exists(oldClips)) Directory.Delete(oldClips, true);
             stdout.WriteLine(
                 $"   found {outcome.Speakers} {(outcome.Speakers == 1 ? "speaker" : "speakers")} ({outcome.Suggested + outcome.Unknown} to name)");
         }
@@ -141,6 +147,24 @@ public static partial class AddSpeakersCommand
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
         return true;
+    }
+
+    /// <summary>Best effort, after the labels are in place: each new clip is moved in over the old one, then old
+    /// clips of speakers that no longer exist are deleted. A failure part way leaves some clips missing or old, never
+    /// the labels without their speakers.json.</summary>
+    private static void ReplaceClips(string staged, string clips)
+    {
+        Directory.CreateDirectory(clips);
+        var fresh = new HashSet<string>(StringComparer.Ordinal);
+        if (Directory.Exists(staged))
+            foreach (var f in Directory.EnumerateFiles(staged))
+            {
+                var name = Path.GetFileName(f);
+                File.Move(f, Path.Combine(clips, name), overwrite: true);
+                fresh.Add(name);
+            }
+        foreach (var old in Directory.EnumerateFiles(clips))
+            if (ClipName().IsMatch(Path.GetFileName(old)) && !fresh.Contains(Path.GetFileName(old))) File.Delete(old);
     }
 
     private static string? SourceFromMeetingMd(string dir)
@@ -164,6 +188,8 @@ public static partial class AddSpeakersCommand
         {
             var name = Path.GetFileName(f);
             if (FrameName().Match(name) is not { Success: true } m) continue;
+            // Only whole seconds survive in the file name, so a picture's time can be up to a second early, and a
+            // line spoken right then may land under the neighbouring picture in the rebuilt meeting.md.
             var seconds = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) * 3600.0
                 + int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture) * 60
                 + int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);

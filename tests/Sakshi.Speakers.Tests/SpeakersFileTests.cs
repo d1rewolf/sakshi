@@ -48,6 +48,14 @@ public sealed class SpeakersFileTests : IDisposable
     [Theory]
     [InlineData("nope")]
     [InlineData("{\"version\":2,\"speakers\":[]}")]
+    [InlineData("{\"version\":1,\"speakers\":null}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"S1\",\"status\":\"unknown\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":null}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"S1\",\"status\":\"unknown\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[]}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"S1\",\"status\":\"unknown\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[1]},{\"id\":\"S1\",\"status\":\"unknown\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[1]}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"X1\",\"status\":\"unknown\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[1]}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"S1\",\"status\":\"bogus\",\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[1]}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[{\"id\":\"S1\",\"status\":7,\"seconds\":1,\"sample\":\"x\",\"clip\":\"c\",\"voiceprint\":[1]}]}")]
+    [InlineData("{\"version\":1,\"speakers\":[null]}")]
     public void BadContentThrowsWithPath(string text)
     {
         Directory.CreateDirectory(_dir);
