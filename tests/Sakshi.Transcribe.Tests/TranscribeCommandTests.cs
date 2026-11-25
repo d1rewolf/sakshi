@@ -244,6 +244,43 @@ public class TranscribeCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task AFailureWhileWritingTheLabelsLeavesAllThreeFilesUnlabelled()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        // The step makes meeting.md's temp name a folder, so that write fails after the others' temps are written.
+        var step = new FakeSpeakers((dir, segs) =>
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "meeting.md.tmp"));
+            return new SpeakerOutcome(
+                [segs[0] with { Speaker = "S1", SpeakerLabel = "Ada" }, segs[1]], 1, 0, 1);
+        });
+        var outDir = Path.Combine(_dir, "atomic");
+
+        var (code, _, stderr) = await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.Equal(0, code);
+        Assert.Contains("Warning: speaker labels skipped:", stderr);
+        Assert.DoesNotContain("speaker", File.ReadAllText(Path.Combine(outDir, "transcript.json")));
+        Assert.DoesNotContain("Ada", File.ReadAllText(Path.Combine(outDir, "transcript.srt")));
+        Assert.DoesNotContain("- Speakers:", File.ReadAllText(Path.Combine(outDir, "meeting.md")));
+        Assert.Empty(Directory.GetFiles(outDir, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task OneSpeakerIsSingular()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = new FakeSpeakers((_, segs) => new SpeakerOutcome(
+            [segs[0] with { Speaker = "S1", SpeakerLabel = "Ada" }, segs[1] with { Speaker = "S1", SpeakerLabel = "Ada" }], 1, 0, 0));
+
+        var (_, stdout, _) = await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", Path.Combine(_dir, "one"), clip);
+
+        Assert.Contains("   found 1 speaker (0 to name)", stdout);
+    }
+
+    [Fact]
     public async Task NoSpeakersFoundSaysSo()
     {
         Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");

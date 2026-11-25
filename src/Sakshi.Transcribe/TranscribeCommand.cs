@@ -199,13 +199,15 @@ public static class TranscribeCommand
                     if (outcome.Speakers > 0)
                     {
                         var labelled = outcome.Segments;
-                        ReplaceFile(Path.Combine(outputDir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, o.Language));
-                        ReplaceFile(Path.Combine(outputDir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled));
                         var labelledMd = MeetingMarkdown.Render(Path.GetFileName(o.Input), frames, labelled, noFrames);
-                        ReplaceFile(Path.Combine(outputDir, "meeting.md"),
-                            p => File.WriteAllText(p, labelledMd, new UTF8Encoding(false)));
+                        ReplaceFiles(
+                        [
+                            (Path.Combine(outputDir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, o.Language)),
+                            (Path.Combine(outputDir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled)),
+                            (Path.Combine(outputDir, "meeting.md"), p => File.WriteAllText(p, labelledMd, new UTF8Encoding(false))),
+                        ]);
                         await stdout.WriteLineAsync(
-                            $"   found {outcome.Speakers} speakers ({outcome.Suggested + outcome.Unknown} to name)");
+                            $"   found {outcome.Speakers} {(outcome.Speakers == 1 ? "speaker" : "speakers")} ({outcome.Suggested + outcome.Unknown} to name)");
                     }
                     else
                         await stdout.WriteLineAsync("   found no speakers");
@@ -243,18 +245,23 @@ public static class TranscribeCommand
         }
     }
 
-    /// <summary>Writes the new content to a temp file beside <paramref name="path"/> and renames it over the old one.</summary>
-    private static void ReplaceFile(string path, Action<string> write)
+    /// <summary>
+    /// All or nothing as far as the file system allows: every file is written to a temp file beside it first, and
+    /// only when all of those are written are they renamed over the originals. A failure before the renames
+    /// deletes the temps and leaves the originals as they were.
+    /// </summary>
+    private static void ReplaceFiles(IReadOnlyList<(string Path, Action<string> Write)> files)
     {
-        var temp = path + ".tmp";
+        var temps = files.Select(f => f.Path + ".tmp").ToList();
         try
         {
-            write(temp);
-            File.Move(temp, path, overwrite: true);
+            for (var i = 0; i < files.Count; i++) files[i].Write(temps[i]);
+            for (var i = 0; i < files.Count; i++) File.Move(temps[i], files[i].Path, overwrite: true);
         }
         finally
         {
-            try { File.Delete(temp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            foreach (var temp in temps)
+                try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
     }
 
