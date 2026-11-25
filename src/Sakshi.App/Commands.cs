@@ -12,6 +12,7 @@ using Sakshi.Platform.Doctor;
 using Sakshi.Platform.Linux;
 using Sakshi.Platform.MacOS;
 using Sakshi.Search;
+using Sakshi.Speakers;
 using Sakshi.Transcribe;
 
 namespace Sakshi.App;
@@ -358,7 +359,9 @@ internal static class Commands
             try
             {
                 return await TranscribeCommand.RunAsync(args, new WhisperNet(), stdout, stderr, paths.ModelsDir, ct,
-                    configModel: cfg.Model.Length > 0 ? cfg.Model : null, log: log);
+                    configModel: cfg.Model.Length > 0 ? cfg.Model : null, log: log,
+                    speakers: new SpeakerStep(paths.ModelsDir, paths.VoicesFile, Math.Max(1, Environment.ProcessorCount / 2)),
+                    configSpeakers: cfg.Speakers);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

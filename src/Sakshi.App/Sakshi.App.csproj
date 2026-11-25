@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../Sakshi.Core/Sakshi.Core.csproj" />
     <ProjectReference Include="../Sakshi.Transcribe/Sakshi.Transcribe.csproj" />
+    <ProjectReference Include="../Sakshi.Speakers/Sakshi.Speakers.csproj" />
     <ProjectReference Include="../Sakshi.Search/Sakshi.Search.csproj" />
     <ProjectReference Include="../Sakshi.Platform/Sakshi.Platform.csproj" />
   </ItemGroup>

@@ -21,6 +21,18 @@ public class OptionsTests
         Assert.Equal(0, o.MaxContext);
     }
 
+    [Fact] public void Parse_SpeakersFlagsAreTriState()
+    {
+        Assert.Null(P("m.mp4").Speakers);
+        Assert.True(P("--speakers", "m.mp4").Speakers);
+        Assert.False(P("--no-speakers", "m.mp4").Speakers);
+        Assert.False(P("--speakers", "--no-speakers", "m.mp4").Speakers);
+    }
+
+    [Fact] public void Usage_ListsTheSpeakerFlags() => Assert.Contains(
+        "  --speakers / --no-speakers\n                          label who said what (default: the config's \"speakers\", on)",
+        TranscribeUsage.Text);
+
     [Fact] public void Parse_Log() => Assert.Equal("t.log", P("--log", "t.log", "m.mp4").LogFile);
     [Fact] public void Parse_LogNeedsAValue() => Assert.Throws<UsageException>(() => P("m.mp4", "--log"));
     [Theory]

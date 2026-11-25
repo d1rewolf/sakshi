@@ -116,6 +116,23 @@ public sealed class ConfigTests
         finally { Directory.Delete(dir, true); }
     }
 
+    [Theory]
+    [InlineData("{\"speakers\": false}", false)]
+    [InlineData("{\"speakers\": true}", true)]
+    [InlineData("{}", true)]
+    public void Load_Speakers_DefaultsToOn(string json, bool expected)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sakshi-cfg-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "config.json");
+            File.WriteAllText(path, json);
+            Assert.Equal(expected, ConfigStore.Load(path, HostOs.Linux, Home).Speakers);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     [Fact]
     public void Load_BlankShortcut_MeansNone()
     {

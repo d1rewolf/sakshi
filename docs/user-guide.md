@@ -235,6 +235,7 @@ changing it. The settings people change most:
 | `transcribeArgs` | The frames setting used when the question is off or not answered | `-F changes -D 8` |
 | `model` | Path to a different Whisper speech model file | downloaded `ggml-base.en.bin` |
 | `liveTranscript` | Open the live transcript by itself when a recording starts | `false` |
+| `speakers` | Label who said what in each transcript; `false` leaves transcripts without speaker labels (`sakshi transcribe --speakers` or `--no-speakers` decides for one run) | `true` |
 | `recordAudioOnly` | The shortcut, a click on the bar icon and `sakshi toggle` record sound only (no window); the menu has an item for each kind either way | `false` |
 | `shortcut` | Windows only: the key that starts or stops a recording, such as `Ctrl+Alt+R` (Ctrl, Alt or Win, plus a letter, a digit or F1–F24); `""` for none | `Ctrl+Alt+R` |
 

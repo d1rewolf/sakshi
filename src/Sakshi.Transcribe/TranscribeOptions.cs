@@ -18,7 +18,8 @@ public sealed record TranscribeOptions(
     int MaxContext = 0,
     bool MarkdownOnly = false,
     bool Help = false,
-    string? LogFile = null)
+    string? LogFile = null,
+    bool? Speakers = null)
 {
     /// <summary>
     /// Parses transcribe-meeting's command line. Does not check that files exist. -h/--help is honoured
@@ -27,6 +28,7 @@ public sealed record TranscribeOptions(
     public static TranscribeOptions Parse(IReadOnlyList<string> args)
     {
         string? output = null, model = null, logFile = null;
+        bool? speakers = null;
         double threshold = 0.2, strong = 0.45;
         int minGap = 8, maxWidth = 1280;
         string framesArg = "scene", language = "en", maxContextArg = "0";
@@ -72,6 +74,8 @@ public sealed record TranscribeOptions(
                 case "-w" or "--max-width": maxWidth = Whole(a, Value(ref i)); break;
                 case "-l" or "--language": language = Value(ref i); break;
                 case "-c" or "--max-context": maxContextArg = Value(ref i); break;
+                case "--speakers": speakers = true; break;
+                case "--no-speakers": speakers = false; break;
                 case "--log": logFile = Value(ref i); break;
                 case "-M" or "--markdown-only": mdOnly = true; break;
                 case "-h" or "--help": return new TranscribeOptions("", null, Help: true);
@@ -108,7 +112,7 @@ public sealed record TranscribeOptions(
             throw new UsageException("Error: input video path is required.");
 
         return new TranscribeOptions(positional[0], output, threshold, strong, minGap, frames,
-            dedupe, model, maxWidth, language, maxContext, mdOnly, LogFile: logFile);
+            dedupe, model, maxWidth, language, maxContext, mdOnly, LogFile: logFile, Speakers: speakers);
     }
 
     private static readonly HashSet<string> TakesValue =

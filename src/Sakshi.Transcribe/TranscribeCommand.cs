@@ -22,7 +22,9 @@ public static class TranscribeCommand
         string? configModel = null,
         string? currentDirectory = null,
         Func<Stream, CancellationToken, Task>? downloadModel = null,
-        TextWriter? log = null)
+        TextWriter? log = null,
+        ISpeakerStep? speakers = null,
+        bool configSpeakers = true)
     {
         // --log: everything the command prints goes to the file (overwritten), as when the
         // tray starts it detached and no one is reading its output. The file is opened before
@@ -56,9 +58,9 @@ public static class TranscribeCommand
             }
 
             if (log is null)
-                return await RunCoreAsync(o, whisper, stdout, stderr, modelsDir, ct, configModel, currentDirectory, downloadModel);
+                return await RunCoreAsync(o, whisper, stdout, stderr, modelsDir, ct, configModel, currentDirectory, downloadModel, speakers, configSpeakers);
             var both = TextWriter.Synchronized(log);
-            return await RunCoreAsync(o, whisper, both, both, modelsDir, ct, configModel, currentDirectory, downloadModel);
+            return await RunCoreAsync(o, whisper, both, both, modelsDir, ct, configModel, currentDirectory, downloadModel, speakers, configSpeakers);
         }
         finally
         {
@@ -90,8 +92,11 @@ public static class TranscribeCommand
         CancellationToken ct,
         string? configModel,
         string? currentDirectory,
-        Func<Stream, CancellationToken, Task>? downloadModel)
+        Func<Stream, CancellationToken, Task>? downloadModel,
+        ISpeakerStep? speakerStep,
+        bool configSpeakers)
     {
+        var useSpeakers = speakerStep is not null && (o.Speakers ?? configSpeakers);
         var noFrames = o.MarkdownOnly || o.Frames == FramesMode.None;
         string? mdFile = null;
         string outputDir;
@@ -144,7 +149,7 @@ public static class TranscribeCommand
 
             await stdout.WriteLineAsync($"==> Transcribing with Whisper.net (model: {Path.GetFileName(model)})");
             IReadOnlyList<Segment> segments;
-            try { segments = await whisper.TranscribeAsync(audio, model, o.Language, o.MaxContext, ct); }
+            try { segments = await whisper.TranscribeAsync(audio, model, o.Language, o.MaxContext, ct, words: useSpeakers); }
             catch (Exception e) when (!ct.IsCancellationRequested)
             {
                 await stderr.WriteLineAsync($"Error: transcription failed (model: {model}): {e.Message}");
@@ -182,6 +187,35 @@ public static class TranscribeCommand
                 ? $"   wrote {spoken} transcript segments"
                 : $"   wrote {frames.Count} frames and {spoken} transcript segments");
 
+            // Last, and on top of files that are already complete: the speaker step runs native code that
+            // can end the process, and labelling must never cost a transcript.
+            if (useSpeakers)
+            {
+                await stdout.WriteLineAsync("==> Finding speakers");
+                try
+                {
+                    var outcome = await speakerStep!.LabelAsync(audio, outputDir, segments, Path.GetFileName(o.Input),
+                        noFrames ? null : frames, stdout, ct);
+                    if (outcome.Speakers > 0)
+                    {
+                        var labelled = outcome.Segments;
+                        ReplaceFile(Path.Combine(outputDir, "transcript.json"), p => TranscriptFiles.WriteJson(p, labelled, o.Language));
+                        ReplaceFile(Path.Combine(outputDir, "transcript.srt"), p => TranscriptFiles.WriteSrt(p, labelled));
+                        var labelledMd = MeetingMarkdown.Render(Path.GetFileName(o.Input), frames, labelled, noFrames);
+                        ReplaceFile(Path.Combine(outputDir, "meeting.md"),
+                            p => File.WriteAllText(p, labelledMd, new UTF8Encoding(false)));
+                        await stdout.WriteLineAsync(
+                            $"   found {outcome.Speakers} speakers ({outcome.Suggested + outcome.Unknown} to name)");
+                    }
+                    else
+                        await stdout.WriteLineAsync("   found no speakers");
+                }
+                catch (Exception e) when (!ct.IsCancellationRequested)
+                {
+                    await stderr.WriteLineAsync($"Warning: speaker labels skipped: {e.Message}");
+                }
+            }
+
             if (mdFile is not null)
             {
                 var target = Path.Combine(currentDirectory ?? Environment.CurrentDirectory, mdFile);
@@ -206,6 +240,21 @@ public static class TranscribeCommand
         {
             if (tempDir)
                 try { Directory.Delete(outputDir, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>Writes the new content to a temp file beside <paramref name="path"/> and renames it over the old one.</summary>
+    private static void ReplaceFile(string path, Action<string> write)
+    {
+        var temp = path + ".tmp";
+        try
+        {
+            write(temp);
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            try { File.Delete(temp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
     }
 

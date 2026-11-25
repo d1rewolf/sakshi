@@ -67,6 +67,9 @@ public sealed record SakshiConfig
     /// <summary>Open the live transcript window by itself when a recording starts.</summary>
     public bool LiveTranscript { get; init; }
 
+    /// <summary>Label who said what in a transcript (the speakers' voices are told apart on this computer); <c>--no-speakers</c> turns it off for one run.</summary>
+    public bool Speakers { get; init; } = true;
+
     [JsonIgnore]
     public string EffectiveArchiveDir =>
         ArchiveDir.Length > 0 ? ArchiveDir : Path.Combine(MeetingsDir, "archives");

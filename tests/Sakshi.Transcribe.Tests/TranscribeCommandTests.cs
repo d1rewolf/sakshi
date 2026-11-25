@@ -20,6 +20,7 @@ public class TranscribeCommandTests : IDisposable
         public int MaxContext = int.MinValue;
         public bool Called;
         public string? Wav;
+        public bool? Words;
         public Exception? Throw;
 
         public Task<IReadOnlyList<Segment>> TranscribeAsync(
@@ -27,6 +28,7 @@ public class TranscribeCommandTests : IDisposable
         {
             Called = true;
             Wav = wavPath;
+            Words = words;
             if (Throw is not null) throw Throw;
             Language = language; Model = modelPath; MaxContext = maxContext;
             Assert.True(File.Exists(wavPath));
@@ -130,6 +132,186 @@ public class TranscribeCommandTests : IDisposable
         await gen.WaitForExitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(0, gen.ExitCode);
         return clip;
+    }
+
+    private sealed class FakeSpeakers(Func<string, IReadOnlyList<Segment>, SpeakerOutcome> result) : ISpeakerStep
+    {
+        public int Calls;
+        public string? Source;
+        public bool? MeetingMdExisted;
+        public bool? FramesWasNull;
+
+        public Task<SpeakerOutcome> LabelAsync(string audioWav, string outputDir, IReadOnlyList<Segment> segments,
+            string source, IReadOnlyList<FrameRecord>? frames, TextWriter stdout, CancellationToken ct)
+        {
+            Calls++;
+            Source = source;
+            FramesWasNull = frames is null;
+            MeetingMdExisted = File.Exists(Path.Combine(outputDir, "meeting.md"));
+            return Task.FromResult(result(outputDir, segments));
+        }
+    }
+
+    private static FakeSpeakers TwoSpeakers() => new((_, segs) => new SpeakerOutcome(
+        [segs[0] with { Speaker = "S1", SpeakerLabel = "Ada" }, segs[1] with { Speaker = "S2", SpeakerLabel = "Speaker 2" }],
+        2, 0, 1));
+
+    private async Task<(int code, string stdout, string stderr)> RunWithAsync(
+        IWhisper w, ISpeakerStep? step, bool configSpeakers, string? cwd, params string[] args)
+    {
+        var o = new StringWriter();
+        var e = new StringWriter();
+        var code = await TranscribeCommand.RunAsync(args, w, o, e, Path.Combine(_dir, "models"),
+            TestContext.Current.CancellationToken, currentDirectory: cwd, speakers: step, configSpeakers: configSpeakers);
+        return (code, o.ToString(), e.ToString());
+    }
+
+    private static FakeWhisper TwoSegments() => new(
+        new Segment(TimeSpan.Zero, TimeSpan.FromSeconds(2), " hello there"),
+        new Segment(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), " bye"));
+
+    [Fact]
+    public async Task SpeakersOffLeavesOutputUnchanged()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var w = TwoSegments();
+        var step = TwoSpeakers();
+        var outDir = Path.Combine(_dir, "off");
+
+        var (code, stdout, stderr) = await RunWithAsync(w, step, true, null, "--no-speakers", "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.Equal(0, code);
+        Assert.Equal("", stderr);
+        Assert.Equal(0, step.Calls);
+        Assert.False(w.Words);
+        Assert.DoesNotContain("Finding speakers", stdout);
+        Assert.DoesNotContain("speaker", File.ReadAllText(Path.Combine(outDir, "transcript.json")));
+        Assert.DoesNotContain("- Speakers:", File.ReadAllText(Path.Combine(outDir, "meeting.md")));
+    }
+
+    [Fact]
+    public async Task NoStepMeansNoLabelsWhateverTheConfigSays()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var w = TwoSegments();
+
+        var (code, _, _) = await RunWithAsync(w, null, true, null, "-F", "none", "-m", _model, "-o", Path.Combine(_dir, "nostep"), clip);
+
+        Assert.Equal(0, code);
+        Assert.False(w.Words);
+    }
+
+    [Fact]
+    public async Task SpeakersOnLabelsTheTranscript()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var w = TwoSegments();
+        var step = TwoSpeakers();
+        var outDir = Path.Combine(_dir, "on");
+
+        var (code, stdout, stderr) = await RunWithAsync(w, step, true, null, "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.Equal(0, code);
+        Assert.Equal("", stderr);
+        Assert.True(w.Words);
+        Assert.Equal(1, step.Calls);
+        Assert.Equal("clip.mp4", step.Source);
+        Assert.True(step.FramesWasNull);
+        Assert.Contains("==> Finding speakers", stdout);
+        Assert.Contains("   found 2 speakers (1 to name)", stdout);
+        var json = File.ReadAllText(Path.Combine(outDir, "transcript.json"));
+        Assert.Contains("\"speaker\": \"S1\"", json);
+        Assert.Contains("\"speaker_label\": \"Ada\"", json);
+        var md = File.ReadAllText(Path.Combine(outDir, "meeting.md"));
+        Assert.Contains("- Speakers: ", md);
+        Assert.Contains("Ada", File.ReadAllText(Path.Combine(outDir, "transcript.srt")));
+        Assert.Empty(Directory.GetFiles(outDir, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task TheUnlabelledMeetingExistsWhenTheStepRuns()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = TwoSpeakers();
+
+        await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", Path.Combine(_dir, "order"), clip);
+
+        Assert.True(step.MeetingMdExisted);
+    }
+
+    [Fact]
+    public async Task NoSpeakersFoundSaysSo()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = new FakeSpeakers((_, segs) => new SpeakerOutcome(segs, 0, 0, 0));
+        var outDir = Path.Combine(_dir, "none");
+
+        var (code, stdout, _) = await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.Equal(0, code);
+        Assert.Contains("   found no speakers", stdout);
+        Assert.DoesNotContain("- Speakers:", File.ReadAllText(Path.Combine(outDir, "meeting.md")));
+    }
+
+    [Fact]
+    public async Task SpeakerFailureStillWritesTheTranscript()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = new FakeSpeakers((_, _) => throw new InvalidOperationException("boom"));
+        var outDir = Path.Combine(_dir, "boom");
+
+        var (code, _, stderr) = await RunWithAsync(TwoSegments(), step, true, null, "-F", "none", "-m", _model, "-o", outDir, clip);
+
+        Assert.Equal(0, code);
+        Assert.Contains("Warning: speaker labels skipped: boom", stderr);
+        var md = File.ReadAllText(Path.Combine(outDir, "meeting.md"));
+        Assert.Contains("hello there", md);
+        Assert.DoesNotContain("- Speakers:", md);
+        Assert.DoesNotContain("speaker", File.ReadAllText(Path.Combine(outDir, "transcript.json")));
+    }
+
+    [Fact]
+    public async Task ConfigFalseTurnsItOff()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = TwoSpeakers();
+
+        await RunWithAsync(TwoSegments(), step, false, null, "-F", "none", "-m", _model, "-o", Path.Combine(_dir, "cfgoff"), clip);
+
+        Assert.Equal(0, step.Calls);
+    }
+
+    [Fact]
+    public async Task FlagBeatsConfig()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var step = TwoSpeakers();
+
+        await RunWithAsync(TwoSegments(), step, false, null, "--speakers", "-F", "none", "-m", _model, "-o", Path.Combine(_dir, "flagon"), clip);
+
+        Assert.Equal(1, step.Calls);
+    }
+
+    [Fact]
+    public async Task MarkdownOnlyIsLabelledBeforeItIsMoved()
+    {
+        Assert.SkipUnless(FrameTests.OnPath("ffmpeg"), "ffmpeg is not on PATH");
+        var clip = await MakeClipAsync();
+        var cwd = Path.Combine(_dir, "cwd");
+        Directory.CreateDirectory(cwd);
+
+        var (code, _, _) = await RunWithAsync(TwoSegments(), TwoSpeakers(), true, cwd, "-M", "-m", _model, clip);
+
+        Assert.Equal(0, code);
+        Assert.Contains("- Speakers: ", File.ReadAllText(Path.Combine(cwd, "clip.md")));
     }
 
     private Task<(int code, string stdout, string stderr)> RunAsync(IWhisper w, params string[] args) =>

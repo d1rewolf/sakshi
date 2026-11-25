@@ -46,6 +46,8 @@ public static class TranscribeUsage
                                   <video name>.md (spaces replaced with underscores) in
                                   the current directory and keep no other artifacts;
                                   -o is ignored
+          --speakers / --no-speakers
+                                  label who said what (default: the config's "speakers", on)
           -h, --help              Show this help
 
         Outputs into <output-dir>:
