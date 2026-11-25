@@ -39,8 +39,13 @@ public static class SpeakerModels
         Directory.CreateDirectory(Path.GetDirectoryName(paths.Segmentation)!);
         foreach (var (path, url) in new[] { (paths.Segmentation, SegmentationUrl), (paths.Embedding, EmbeddingUrl) })
         {
-            if (File.Exists(path)) continue;
             var name = Path.GetFileName(path);
+            // sherpa kills the process on a bad model, so an existing file must match its hash too.
+            if (File.Exists(path))
+            {
+                if (await HashOfAsync(path, ct) == hashes[name].ToLowerInvariant()) continue;
+                TryDelete(path);
+            }
             var part = path + ".part";
             stdout.WriteLine($"==> Downloading speaker model {name} to {path}");
             try
@@ -80,6 +85,12 @@ public static class SpeakerModels
         response.EnsureSuccessStatusCode();
         await using var body = await response.Content.ReadAsStreamAsync(ct);
         await body.CopyToAsync(destination, ct);
+    }
+
+    private static async Task<string> HashOfAsync(string path, CancellationToken ct)
+    {
+        await using var fs = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(fs, ct)).ToLowerInvariant();
     }
 
     private static void TryDelete(string path)

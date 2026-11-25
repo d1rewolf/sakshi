@@ -51,16 +51,42 @@ public sealed class SpeakerModelsTests : IDisposable
         Assert.Contains("==> Downloading speaker model pyannote-segmentation-3-0.onnx to", output.ToString());
     }
 
+    private static Dictionary<string, string> TableFor(byte[] bytes)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        return new Dictionary<string, string> {
+            ["pyannote-segmentation-3-0.onnx"] = hash,
+            ["wespeaker_en_voxceleb_resnet34_LM.onnx"] = hash };
+    }
+
     [Fact]
     public async Task EnsureReturnsNullWhenFilesExist()
     {
+        var bytes = new byte[] { 1, 2 };
         var p = SpeakerModels.In(_dir);
         Directory.CreateDirectory(Path.GetDirectoryName(p.Segmentation)!);
-        File.WriteAllBytes(p.Segmentation, new byte[] { 1 });
-        File.WriteAllBytes(p.Embedding, new byte[] { 1 });
+        File.WriteAllBytes(p.Segmentation, bytes);
+        File.WriteAllBytes(p.Embedding, bytes);
         var reason = await SpeakerModels.EnsureAsync(_dir, TextWriter.Null, CancellationToken.None,
-            (u, s, c) => throw new InvalidOperationException("must not download"));
+            (u, s, c) => throw new InvalidOperationException("must not download"), TableFor(bytes));
         Assert.Null(reason);
+    }
+
+    [Fact]
+    public async Task ExistingFileWithWrongHashIsReplaced()
+    {
+        var good = new byte[] { 5, 5, 5 };
+        var p = SpeakerModels.In(_dir);
+        Directory.CreateDirectory(Path.GetDirectoryName(p.Segmentation)!);
+        File.WriteAllBytes(p.Segmentation, new byte[] { 0 });
+        File.WriteAllBytes(p.Embedding, good);
+        var calls = 0;
+        var reason = await SpeakerModels.EnsureAsync(_dir, TextWriter.Null, CancellationToken.None,
+            async (u, s, c) => { calls++; await s.WriteAsync(good, c); }, TableFor(good));
+        Assert.Null(reason);
+        Assert.Equal(1, calls);
+        Assert.Equal(good, File.ReadAllBytes(p.Segmentation));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(p.Segmentation)!, "*.part"));
     }
 
     [Fact]
