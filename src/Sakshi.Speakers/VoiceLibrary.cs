@@ -42,10 +42,27 @@ public sealed class VoiceLibrary
             var dto = JsonSerializer.Deserialize<FileDto>(File.ReadAllText(path), Options)
                 ?? throw new InvalidDataException("empty file");
             if (dto.Version != 1) throw new InvalidDataException($"unsupported version {dto.Version}");
-            if (dto.Background is { } bg) { lib._sum = bg.Sum; lib._count = bg.Count; }
+            if (dto.Background is { } bg)
+            {
+                if ((bg.Sum is null) != (bg.Count <= 0) || bg.Sum is { Length: 0 })
+                    throw new InvalidDataException("inconsistent background");
+                lib._sum = bg.Sum;
+                lib._count = bg.Count;
+            }
+            int? width = null;
             foreach (var p in dto.People ?? [])
+            {
+                if (string.IsNullOrEmpty(p.Id) || string.IsNullOrEmpty(p.Name))
+                    throw new InvalidDataException("person without id or name");
+                foreach (var v in p.Voiceprints ?? [])
+                {
+                    if (v.Vector is not { Length: > 0 }) throw new InvalidDataException("empty voiceprint");
+                    width ??= v.Vector.Length;
+                    if (v.Vector.Length != width) throw new InvalidDataException("voiceprints of different lengths");
+                }
                 lib._people.Add(new Person(p.Id, p.Name,
                     (p.Voiceprints ?? []).Select(v => new StoredPrint(v.Vector, v.Meeting, v.Speaker, v.Added)).ToList()));
+            }
         }
         catch (Exception e) when (e is JsonException or InvalidDataException or IOException or NotSupportedException or UnauthorizedAccessException)
         {
@@ -59,7 +76,7 @@ public sealed class VoiceLibrary
 
     public Person Teach(string name, float[] raw, string meeting, string speaker, DateTimeOffset now)
     {
-        var print = new StoredPrint(raw, meeting, speaker, now);
+        var print = new StoredPrint((float[])raw.Clone(), meeting, speaker, now);
         var existing = Find(name);
         var prints = existing is null ? [] : existing.Prints.ToList();
         prints.Add(print);
@@ -88,8 +105,9 @@ public sealed class VoiceLibrary
 
     public void AddToBackground(IEnumerable<float[]> raw)
     {
-        foreach (var v in raw)
+        foreach (var v0 in raw)
         {
+            var v = (float[])v0.Clone();
             _sum ??= new double[v.Length];
             if (v.Length != _sum.Length)
                 throw new ArgumentException($"Voiceprint has {v.Length} values, expected {_sum.Length}.");

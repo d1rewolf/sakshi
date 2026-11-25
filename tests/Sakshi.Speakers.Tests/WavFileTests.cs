@@ -65,4 +65,13 @@ public sealed class WavFileTests : IDisposable
         }
         Assert.Throws<InvalidDataException>(() => WavFile.Read(path));
     }
+
+    [Fact]
+    public void NaNIsWrittenAsSilence()
+    {
+        var path = Path.Combine(_dir, "n.wav");
+        WavFile.Write(path, 8000, [float.NaN, 0.5f]);
+        var (_, s) = WavFile.Read(path);
+        Assert.Equal(0f, s[0]);
+    }
 }

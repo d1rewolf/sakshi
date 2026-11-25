@@ -117,4 +117,33 @@ public sealed class VoiceLibraryTests : IDisposable
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
             System.IO.File.GetUnixFileMode(Path.GetDirectoryName(File_)!));
     }
+
+    [Theory]
+    [InlineData("{\"version\":1,\"background\":{\"count\":3},\"people\":[]}")]
+    [InlineData("{\"version\":1,\"background\":{\"sum\":[1],\"count\":0},\"people\":[]}")]
+    [InlineData("{\"version\":1,\"people\":[{\"id\":\"\",\"name\":\"Ada\",\"voiceprints\":[]}]}")]
+    [InlineData("{\"version\":1,\"people\":[{\"id\":\"a\",\"name\":\"Ada\",\"voiceprints\":[{\"vector\":[],\"meeting\":\"m\",\"speaker\":\"S1\",\"added\":\"2026-11-25T10:00:00Z\"}]}]}")]
+    [InlineData("{\"version\":1,\"people\":[{\"id\":\"a\",\"name\":\"Ada\",\"voiceprints\":[{\"vector\":[1],\"meeting\":\"m\",\"speaker\":\"S1\",\"added\":\"2026-11-25T10:00:00Z\"},{\"vector\":[1,2],\"meeting\":\"m\",\"speaker\":\"S2\",\"added\":\"2026-11-25T10:00:00Z\"}]}]}")]
+    public void InconsistentContentIsUnreadable(string text)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(File_)!);
+        File.WriteAllText(File_, text);
+        var ex = Assert.Throws<VoiceLibraryException>(() => VoiceLibrary.Load(File_));
+        Assert.Contains(File_, ex.Message);
+    }
+
+    [Fact]
+    public void InputArraysAreCopied()
+    {
+        var lib = VoiceLibrary.Load(File_);
+        var v = new[] { 1f, 2f };
+        lib.Teach("Ada", v, "m", "S1", T0);
+        v[0] = 99;
+        Assert.Equal(1f, lib.Find("Ada")!.Prints[0].Vector[0]);
+        var bg = new[] { 1f };
+        lib.AddToBackground([bg]);
+        bg[0] = 50;
+        lib.AddToBackground([[1f]]);
+        Assert.Equal([2.0], lib.BackgroundSum.Sum!);
+    }
 }

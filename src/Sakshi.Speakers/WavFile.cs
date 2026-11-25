@@ -63,7 +63,7 @@ public static class WavFile
         BinaryPrimitives.WriteInt32LittleEndian(s[40..], dataLen);
         for (var i = 0; i < samples.Length; i++)
         {
-            var v = Math.Clamp(samples[i], -1f, 1f);
+            var v = float.IsNaN(samples[i]) ? 0f : Math.Clamp(samples[i], -1f, 1f);
             BinaryPrimitives.WriteInt16LittleEndian(s[(44 + i * 2)..], (short)Math.Round(v * 32767f));
         }
         var dir = Path.GetDirectoryName(Path.GetFullPath(path))!;
