@@ -1,0 +1,39 @@
+using SherpaOnnx;
+
+namespace Sakshi.Speakers;
+
+public sealed class SherpaDiarizer : IDiarizer
+{
+    private readonly OfflineSpeakerDiarization _sd;
+
+    public SherpaDiarizer(string segmentationModel, string embeddingModel, int threads)
+    {
+        // sherpa aborts the whole process on a missing model, so check first.
+        foreach (var m in new[] { segmentationModel, embeddingModel })
+            if (!File.Exists(m)) throw new FileNotFoundException("speaker model not found", m);
+        var cfg = new OfflineSpeakerDiarizationConfig();
+        cfg.Segmentation.Pyannote.Model = segmentationModel;
+        cfg.Segmentation.NumThreads = threads;
+        cfg.Embedding.Model = embeddingModel;
+        cfg.Embedding.NumThreads = threads;
+        cfg.Clustering.Threshold = (float)SpeakerSettings.ClusterThreshold;
+        _sd = new OfflineSpeakerDiarization(cfg);
+        if (_sd.SampleRate != 16000)
+        {
+            _sd.Dispose();
+            throw new InvalidOperationException($"speaker model expects {_sd.SampleRate} Hz audio, not 16000");
+        }
+    }
+
+    public IReadOnlyList<PieceTurn> Diarize(float[] samples, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        // sherpa-onnx 2.0.3 ignores a non-zero progress-callback return (the run finishes), so cancellation
+        // is only honoured before and after Process.
+        var segs = _sd.Process(samples);
+        ct.ThrowIfCancellationRequested();
+        return segs.Select(s => new PieceTurn(s.Start, s.End, s.Speaker)).ToList();
+    }
+
+    public void Dispose() => _sd.Dispose();
+}
