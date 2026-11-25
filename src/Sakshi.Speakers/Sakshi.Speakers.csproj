@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sakshi.Transcribe/Sakshi.Transcribe.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="background.json" LogicalName="Sakshi.Speakers.background.json" />
+  </ItemGroup>
+</Project>
