@@ -2,6 +2,15 @@ namespace Sakshi.Transcribe;
 
 public sealed record Segment(TimeSpan Start, TimeSpan End, string Text)
 {
+    /// <summary>Words with times; empty unless Whisper was asked for them.</summary>
+    public IReadOnlyList<Word> Words { get; init; } = Array.Empty<Word>();
+
+    /// <summary>Speaker id ("S1"), set by speaker labelling.</summary>
+    public string? Speaker { get; init; }
+
+    /// <summary>Name to print for the speaker, set by speaker labelling.</summary>
+    public string? SpeakerLabel { get; init; }
+
     /// <summary>
     /// A segment with no words in it: Whisper's marker for silence ("[BLANK_AUDIO]") or only notes about sounds, such as
     /// "(door closes)", "[Music]", "*sighs*" or "♪", which it mostly invents from room noise. Transcripts leave these

@@ -23,7 +23,7 @@ public class TranscribeCommandTests : IDisposable
         public Exception? Throw;
 
         public Task<IReadOnlyList<Segment>> TranscribeAsync(
-            string wavPath, string modelPath, string language, int maxContext, CancellationToken ct)
+            string wavPath, string modelPath, string language, int maxContext, CancellationToken ct, bool words = false)
         {
             Called = true;
             Wav = wavPath;

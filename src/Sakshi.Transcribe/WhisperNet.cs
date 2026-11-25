@@ -10,7 +10,7 @@ public sealed class WhisperNet(int? threads = null) : IWhisper
     private const int BeamSize = 5;
 
     public async Task<IReadOnlyList<Segment>> TranscribeAsync(
-        string wavPath, string modelPath, string language, int maxContext, CancellationToken ct)
+        string wavPath, string modelPath, string language, int maxContext, CancellationToken ct, bool words = false)
     {
         using var factory = WhisperFactory.FromPath(modelPath);
         var builder = factory.CreateBuilder()
@@ -20,11 +20,15 @@ public sealed class WhisperNet(int? threads = null) : IWhisper
         // -1 leaves whisper's own default (full context); 0 is today's -mc 0.
         if (maxContext >= 0) builder = builder.WithMaxLastTextTokens(maxContext);
 
+        if (words) builder = builder.WithTokenTimestamps();
+
         using var processor = builder.Build();
         await using var wav = File.OpenRead(wavPath);
         var segments = new List<Segment>();
         await foreach (var s in processor.ProcessAsync(wav, ct))
-            if (!Segment.IsBlank(s.Text)) segments.Add(new Segment(s.Start, s.End, s.Text));
+            if (!Segment.IsBlank(s.Text)) segments.Add(words
+                ? new Segment(s.Start, s.End, s.Text) { Words = WordTimes.FromTokens(s.Tokens.Select(t => (t.Text ?? "", t.Start, t.End))) }
+                : new Segment(s.Start, s.End, s.Text));
         return segments;
     }
 }
